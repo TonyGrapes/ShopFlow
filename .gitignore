@@ -1,0 +1,47 @@
+plan/*
+# Environment files
+.env
+.env.local
+.env.*.local
+Response.txt
+Request.txt
+shopflow-repomix.txt
+**repomix**
+**test-data**
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+venv/
+.venv/
+.pytest_cache/
+
+# Node.js
+node_modules/
+npm-debug.log*
+yarn-error.log*
+dist/
+build/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Секреты
+.env
+*.key
+*.pem
+secrets/
+
+# Логи
+*.log
+logs/
+
+# Но оставляем пример
+!.env.test

@@ -1,0 +1,139 @@
+# app/api/v1/deps.py
+"""
+FastAPI-зависимости.
+
+- get_current_active_user: decode → load user → проверки status/deleted_at/verified.
+- require_roles: фабрика для RBAC (роль — в роутере).
+- Ownership: business-правило — в сервисе (не здесь).
+"""
+from dataclasses import dataclass
+from typing import Callable
+
+import jwt
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from redis.asyncio import Redis
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.core.redis import get_redis
+from app.core.security import decode_access_token
+from app.db.enum import UserRole, UserStatus
+from app.db.session import get_db
+from app.models.user import User as UserModel
+from app.services.cache_service import CacheService
+
+security = HTTPBearer(auto_error=False)
+
+
+@dataclass
+class User:
+    """
+    Текущий пользователь.
+
+    orm — исходный SQLAlchemy-объект (нужен для business-правил ownership).
+    Атрибуты продублированы для удобства и обратной совместимости с Эпиком 2.
+    """
+    id: int
+    public_id: str
+    role: UserRole
+    status: UserStatus
+    is_email_verified: bool
+    orm: UserModel
+
+    @property
+    def is_active(self) -> bool:
+        return self.status == UserStatus.ACTIVE and self.is_email_verified
+
+
+async def get_current_active_user(
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    db: AsyncSession = Depends(get_db),
+) -> User:
+    """
+    Аутентификация:
+    1. Bearer-токен обязателен.
+    2. decode_access_token (проверка подписи, exp, type).
+    3. Загрузка user из БД по public_id.
+    4. Проверки: не удалён, не забанен, email верифицирован.
+    """
+    if credentials is None or not credentials.credentials:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authorization header is required",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    try:
+        payload = decode_access_token(credentials.credentials)
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Access token expired",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+    except jwt.InvalidTokenError as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=f"Invalid access token: {e}",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    public_id = payload["sub"]
+    result = await db.execute(
+        select(UserModel).where(
+            UserModel.public_id == public_id,
+            UserModel.deleted_at.is_(None),
+        )
+    )
+    user = result.scalar_one_or_none()
+
+    if user is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
+
+    if user.status == UserStatus.BANNED:
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "Account is banned")
+
+    if not user.is_email_verified:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "Email not verified. Use POST /api/v1/auth/resend-verification",
+        )
+
+    return User(
+        id=user.id,
+        public_id=str(user.public_id),
+        role=user.role,
+        status=user.status,
+        is_email_verified=user.is_email_verified,
+        orm=user,
+    )
+
+
+def require_roles(*allowed: UserRole) -> Callable:
+    """
+    Фабрика RBAC-зависимостей.
+
+    Использование:
+        @router.post("", dependencies=[Depends(require_roles(UserRole.ADMIN))])
+
+    Роль проверяется в роутере (что можно войти в дверь).
+    Ownership — в сервисе (что можно сделать с этим объектом).
+    """
+    async def _checker(current: User = Depends(get_current_active_user)) -> User:
+        if current.role not in allowed:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail=f"Requires one of roles: {[r.value for r in allowed]}",
+            )
+        return current
+
+    return _checker
+
+
+def get_cache_service(redis: Redis = Depends(get_redis)) -> CacheService:
+    return CacheService(redis)
