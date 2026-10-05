@@ -52,7 +52,7 @@ async def list_favorites(
             Product.deleted_at.is_(None),
         )
         .options(selectinload(Product.images))       # ✅ чтобы cover_key не дёргал lazy load
-        .order_by(Favorite.created_at.desc())
+        .order_by(Favorite.created_at.desc(), Favorite.id.desc())
     )
     rows = result.all()
     return [_serialize(fav, prod) for fav, prod in rows]
