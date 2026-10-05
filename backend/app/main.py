@@ -7,7 +7,12 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
 from app import models  # noqa: F401
-from app.api.v1.endpoints import auth, products
+from app.api.v1.endpoints import (
+    auth,
+    cart,
+    favorites,
+    products,
+)
 from app.core.config import get_settings
 from app.core.redis import close_redis, get_redis
 
@@ -52,6 +57,8 @@ app.add_middleware(
 
 app.include_router(products.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")
+app.include_router(cart.router, prefix="/api/v1")
+app.include_router(favorites.router, prefix="/api/v1")
 
 
 @app.get("/")

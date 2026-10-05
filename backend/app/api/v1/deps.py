@@ -6,22 +6,25 @@ FastAPI-зависимости.
 - require_roles: фабрика для RBAC (роль — в роутере).
 - Ownership: business-правило — в сервисе (не здесь).
 """
+import secrets
 from dataclasses import dataclass
 from typing import Callable
 
 import jwt
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from redis.asyncio import Redis
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.config import get_settings
 from app.core.redis import get_redis
 from app.core.security import decode_access_token
 from app.db.enum import UserRole, UserStatus
 from app.db.session import get_db
 from app.models.user import User as UserModel
 from app.services.cache_service import CacheService
+from app.services.cart_service import GuestCartStore
 
 security = HTTPBearer(auto_error=False)
 
@@ -137,3 +140,118 @@ def require_roles(*allowed: UserRole) -> Callable:
 
 def get_cache_service(redis: Redis = Depends(get_redis)) -> CacheService:
     return CacheService(redis)
+
+
+@dataclass
+class CartOwner:
+    """
+    Кто владеет корзиной.
+
+    Гость: user_id=None, session_id=<uuid>, is_guest=True.
+    Юзер:  user_id=<id>,  session_id=None, is_guest=False.
+    """
+    user_id: int | None
+    session_id: str | None
+    is_guest: bool
+
+
+async def get_cart_owner(
+    request: Request,
+    response: Response,
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    db: AsyncSession = Depends(get_db),
+) -> CartOwner:
+    """
+    Определяет владельца корзины.
+
+    Логика:
+    - Есть валидный Bearer → юзер.
+    - Нет Bearer или он пустой → гость (генерим cookie session_id).
+    - Bearer ЕСТЬ, но невалидный → 401 (не маскируем под гостя).
+    """
+    # Есть ли вообще заголовок?
+    if credentials is not None and credentials.credentials:
+        # Пробуем аутентифицировать. Если невалидный — пусть падает 401.
+        user = await get_current_active_user(credentials, db)
+        return CartOwner(user_id=user.id, session_id=None, is_guest=False)
+
+    # Гость
+    s = get_settings()
+    sid = request.cookies.get(s.GUEST_CART_COOKIE_NAME)
+    if sid is None:
+        sid = secrets.token_hex(16)
+        response.set_cookie(
+            key=s.GUEST_CART_COOKIE_NAME,
+            value=sid,
+            max_age=s.GUEST_CART_COOKIE_MAX_AGE_DAYS * 24 * 3600,
+            httponly=True,
+            secure=s.REFRESH_COOKIE_SECURE,
+            samesite=s.REFRESH_COOKIE_SAMESITE,
+            path=s.GUEST_CART_COOKIE_PATH,
+        )
+    return CartOwner(user_id=None, session_id=sid, is_guest=True)
+
+
+def get_guest_cart_store(
+    redis: Redis = Depends(get_redis),
+) -> "GuestCartStore":
+    """FastAPI-dependency для GuestCartStore."""
+    from app.services.cart_service import GuestCartStore
+    return GuestCartStore(redis)
+
+# ============================================================
+#  Cart owner (guest или user)
+# ============================================================
+
+@dataclass
+class CartOwner:
+    """
+    Кто владеет корзиной.
+
+    Гость: user_id=None, session_id=<hex>, is_guest=True.
+    Юзер:  user_id=<id>,  session_id=None, is_guest=False.
+    """
+    user_id: int | None
+    session_id: str | None
+    is_guest: bool
+
+
+async def get_cart_owner(
+    request: Request,
+    response: Response,
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    db: AsyncSession = Depends(get_db),
+) -> CartOwner:
+    """
+    Определяет владельца корзины.
+
+    - Есть Bearer с валидным access → юзер.
+    - Bearer нет / пустой → гость (генерим cookie, если нет).
+    - Bearer есть, но невалидный → 401 (не маскируем под гостя).
+    """
+    if credentials is not None and credentials.credentials:
+        user = await get_current_active_user(credentials, db)
+        return CartOwner(user_id=user.id, session_id=None, is_guest=False)
+
+    s = get_settings()
+    sid = request.cookies.get(s.GUEST_CART_COOKIE_NAME)
+    if sid is None:
+        sid = secrets.token_hex(16)
+        response.set_cookie(
+            key=s.GUEST_CART_COOKIE_NAME,
+            value=sid,
+            max_age=s.GUEST_CART_COOKIE_MAX_AGE_DAYS * 24 * 3600,
+            httponly=True,
+            secure=s.REFRESH_COOKIE_SECURE,
+            samesite=s.REFRESH_COOKIE_SAMESITE,
+            path=s.GUEST_CART_COOKIE_PATH,
+        )
+    return CartOwner(user_id=None, session_id=sid, is_guest=True)
+
+
+def get_guest_cart_store(
+    redis: Redis = Depends(get_redis),
+) -> "GuestCartStore":
+    """FastAPI-dependency для GuestCartStore."""
+    from app.services.cart_service import GuestCartStore
+    return GuestCartStore(redis)
