@@ -2,8 +2,9 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from app.api.v1.deps import User, get_current_active_user
+from app.api.v1.deps import User, get_current_active_user, get_guest_cart_store
 from app.core.config import get_settings
+from app.core.redis import get_redis
 from app.core.security import (
     create_access_token,
     generate_refresh_token,
@@ -28,7 +29,16 @@ from app.services.auth_service import (
     revoke_family,
     revoke_family_independently,
 )
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from app.services.cart_service import GuestCartStore, merge_guest_cart_into_user
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Request,
+    Response,
+    status,
+)
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -169,6 +179,8 @@ async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
 async def login(
     data: LoginRequest,
     response: Response,
+    request: Request,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ):
     """
@@ -208,6 +220,38 @@ async def login(
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
             "Email not verified. Use POST /api/v1/auth/resend-verification",
+        )
+
+    # ============================================================
+    #  Merge guest-cart (best-effort)
+    # ============================================================
+    # Если в cookie есть guest session_id — мержим его корзину в user-cart.
+    # Best-effort: любая ошибка логируется, но НЕ роняет login.
+    # Guest-cart удаляется из Redis в BackgroundTask ПОСЛЕ commit'а.
+    s = get_settings()
+    sid = request.cookies.get(s.GUEST_CART_COOKIE_NAME)
+    if sid is not None:
+        guest_store = GuestCartStore(get_redis())
+
+        # merge_guest_cart_into_user внутри использует guest_store.get() —
+        # при недоступности Redis это fail-open (пустая корзина) → merge — no-op.
+        # Ошибки БД (INSERT) → пусть валят login, транзакция и так откатится в get_db.
+        merge_result = await merge_guest_cart_into_user(
+            db=db,
+            guest_store=guest_store,
+            session_id=sid,
+            user_id=user.id,
+        )
+        if merge_result.merged:
+            logger.info(
+                "Cart merge on login: user=%s merged=%d warnings=%d",
+                user.id, merge_result.merged, len(merge_result.warnings),
+            )
+        background_tasks.add_task(guest_store.clear, sid)
+
+        response.delete_cookie(
+            key=s.GUEST_CART_COOKIE_NAME,
+            path=s.GUEST_CART_COOKIE_PATH,
         )
 
     return await _issue_token_pair(db, response, user)
