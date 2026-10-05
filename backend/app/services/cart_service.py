@@ -325,25 +325,29 @@ async def get_guest_cart_as_response(
 #  Мутации user-cart (PostgreSQL)
 # ============================================================
 
+# app/services/cart_service.py
+
 async def add_item_to_user_cart(
     db: AsyncSession,
     user_id: int,
     product_id: int,
     quantity: int,
 ) -> None:
-    """
-    Идемпотентный upsert: если позиция есть — увеличивает quantity,
-    если нет — создаёт со снимком текущей цены.
-    """
     s = get_settings()
 
     product = await db.get(Product, product_id)
     if product is None or product.deleted_at is not None:
         raise LookupError(f"Product {product_id} not found")
 
-    existing = await db.get(
-        CartItem, {"user_id": user_id, "product_id": product_id}
-    )
+    # ✅ select + where, а не db.get с composite dict — у CartItem
+    #    primary key только id, а (user_id, product_id) — это UniqueConstraint.
+    existing = (await db.execute(
+        select(CartItem).where(
+            CartItem.user_id == user_id,
+            CartItem.product_id == product_id,
+        )
+    )).scalar_one_or_none()
+
     if existing is None:
         count = (
             await db.execute(
@@ -361,7 +365,7 @@ async def add_item_to_user_cart(
                 user_id=user_id,
                 product_id=product_id,
                 quantity=quantity,
-                product_cost=product.cost,   # ✅ снимок текущей цены
+                product_cost=product.cost,
             )
         )
     else:
@@ -376,10 +380,13 @@ async def set_user_cart_item_quantity(
     product_id: int,
     quantity: int,
 ) -> bool:
-    """Абсолютное значение. quantity=0 → удаляет. True — если позиция была."""
-    existing = await db.get(
-        CartItem, {"user_id": user_id, "product_id": product_id}
-    )
+    existing = (await db.execute(
+        select(CartItem).where(
+            CartItem.user_id == user_id,
+            CartItem.product_id == product_id,
+        )
+    )).scalar_one_or_none()
+
     if existing is None:
         return False
 
@@ -397,15 +404,18 @@ async def remove_user_cart_item(
     user_id: int,
     product_id: int,
 ) -> bool:
-    existing = await db.get(
-        CartItem, {"user_id": user_id, "product_id": product_id}
-    )
+    existing = (await db.execute(
+        select(CartItem).where(
+            CartItem.user_id == user_id,
+            CartItem.product_id == product_id,
+        )
+    )).scalar_one_or_none()
+
     if existing is None:
         return False
     await db.delete(existing)
     await db.flush()
     return True
-
 
 async def clear_user_cart(db: AsyncSession, user_id: int) -> int:
     """Удаляет все позиции. Возвращает количество."""
