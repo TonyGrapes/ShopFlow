@@ -46,6 +46,6 @@ async def close_redis() -> None:
     Закрывает клиент. Вызывается в lifespan при shutdown.
     """
     client = get_redis()
-    await client.close()
+    await client.aclose()
     get_redis.cache_clear()
     logger.info("Redis client closed")
