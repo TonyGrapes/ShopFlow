@@ -141,6 +141,9 @@ def require_roles(*allowed: UserRole) -> Callable:
 def get_cache_service(redis: Redis = Depends(get_redis)) -> CacheService:
     return CacheService(redis)
 
+# ============================================================
+#  Cart owner (guest или user)
+# ============================================================
 
 @dataclass
 class CartOwner:
@@ -199,59 +202,3 @@ def get_guest_cart_store(
     from app.services.cart_service import GuestCartStore
     return GuestCartStore(redis)
 
-# ============================================================
-#  Cart owner (guest или user)
-# ============================================================
-
-@dataclass
-class CartOwner:
-    """
-    Кто владеет корзиной.
-
-    Гость: user_id=None, session_id=<hex>, is_guest=True.
-    Юзер:  user_id=<id>,  session_id=None, is_guest=False.
-    """
-    user_id: int | None
-    session_id: str | None
-    is_guest: bool
-
-
-async def get_cart_owner(
-    request: Request,
-    response: Response,
-    credentials: HTTPAuthorizationCredentials | None = Depends(security),
-    db: AsyncSession = Depends(get_db),
-) -> CartOwner:
-    """
-    Определяет владельца корзины.
-
-    - Есть Bearer с валидным access → юзер.
-    - Bearer нет / пустой → гость (генерим cookie, если нет).
-    - Bearer есть, но невалидный → 401 (не маскируем под гостя).
-    """
-    if credentials is not None and credentials.credentials:
-        user = await get_current_active_user(credentials, db)
-        return CartOwner(user_id=user.id, session_id=None, is_guest=False)
-
-    s = get_settings()
-    sid = request.cookies.get(s.GUEST_CART_COOKIE_NAME)
-    if sid is None:
-        sid = secrets.token_hex(16)
-        response.set_cookie(
-            key=s.GUEST_CART_COOKIE_NAME,
-            value=sid,
-            max_age=s.GUEST_CART_COOKIE_MAX_AGE_DAYS * 24 * 3600,
-            httponly=True,
-            secure=s.REFRESH_COOKIE_SECURE,
-            samesite=s.REFRESH_COOKIE_SAMESITE,
-            path=s.GUEST_CART_COOKIE_PATH,
-        )
-    return CartOwner(user_id=None, session_id=sid, is_guest=True)
-
-
-def get_guest_cart_store(
-    redis: Redis = Depends(get_redis),
-) -> "GuestCartStore":
-    """FastAPI-dependency для GuestCartStore."""
-    from app.services.cart_service import GuestCartStore
-    return GuestCartStore(redis)
