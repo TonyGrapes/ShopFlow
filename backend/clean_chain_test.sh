@@ -29,7 +29,7 @@ MINIO_USER="${MINIO_ROOT_USER:-shopflow_admin}"
 MINIO_PASS="${MINIO_ROOT_PASSWORD:-SuperSecretP@ssw0rd!2026}"
 
 # Минимальное количество таблиц (14 из миграций + alembic_version)
-MIN_TABLES=15
+MIN_TABLES=16
 
 # ============================================================
 # Утилиты
@@ -161,6 +161,7 @@ step "8/8 Main tables check"
 REQUIRED_TABLES=(users categories products cart_items orders order_items
                  product_images payments refunds reviews promo_codes
                  addresses email_verifications refresh_tokens
+                 favorites
                  alembic_version)
 
 for t in "${REQUIRED_TABLES[@]}"; do
