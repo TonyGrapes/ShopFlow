@@ -83,6 +83,21 @@ class Settings(BaseSettings):
     REFRESH_COOKIE_SECURE: bool = False    # True в prod (https)
     REFRESH_COOKIE_SAMESITE: str = "lax"   # localhost:5173 → :8000 = same-site
 
+    # ==========================================
+    # CART: Guest session
+    # ==========================================
+    GUEST_CART_COOKIE_NAME: str = "shopflow_cart_session"
+    GUEST_CART_COOKIE_PATH: str = "/api/v1"       # шире, чем refresh: /cart/* тоже нужен cookie
+    GUEST_CART_COOKIE_MAX_AGE_DAYS: int = Field(default=30, gt=0)
+    GUEST_CART_REDIS_TTL_SECONDS: int = Field(
+        default=30 * 24 * 3600, gt=0,
+        description="TTL guest cart в Redis (продлевается на мутациях)",
+    )
+    GUEST_CART_MAX_ITEMS: int = Field(
+        default=100, gt=0, le=1000,
+        description="Лимит позиций в корзине (защита от абуза)",
+    )
+
 
     @field_validator("SECRET_KEY")
     @classmethod
