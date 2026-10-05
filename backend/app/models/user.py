@@ -14,6 +14,7 @@ if TYPE_CHECKING:
     from app.models.address import Address
     from app.models.cart_item import CartItem
     from app.models.email_verification import EmailVerification
+    from app.models.favorite import Favorite
     from app.models.order import Order
     from app.models.refresh_token import RefreshToken
     from app.models.review import Review
@@ -83,6 +84,9 @@ class User(TimeStampMixin, Base):
     reviews: Mapped[list["Review"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     email_verifications: Mapped[list["EmailVerification"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     refresh_tokens: Mapped[list["RefreshToken"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    favorites: Mapped[list["Favorite"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+    )
     
     __table_args__ = (
         Index(

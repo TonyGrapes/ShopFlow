@@ -3,6 +3,7 @@ from app.models.address import Address
 from app.models.cart_item import CartItem
 from app.models.category import Category
 from app.models.email_verification import EmailVerification
+from app.models.favorite import Favorite
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.payment import Payment
