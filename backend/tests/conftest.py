@@ -477,3 +477,180 @@ async def cart_client(db_session, mock_storage, mock_cache, real_guest_store):
 
     app.dependency_overrides.clear()
 
+
+# tests/conftest.py — добавить в конец
+
+from app.db.enum import OrderStatus, PaymentMethod, PaymentStatus
+from app.models.address import Address
+from app.models.cart_item import CartItem
+from app.models.order import Order
+from app.models.order_item import OrderItem
+from app.models.payment import Payment
+
+# ============ Address fixtures ============
+
+@pytest_asyncio.fixture
+async def address(db_session: AsyncSession, verified_user: UserModel) -> Address:
+    """Дефолтный адрес для verified_user."""
+    a = Address(
+        user_id=verified_user.id,
+        address_line1="ул. Ленина, 1",
+        address_line2="кв. 42",
+        city="Москва",
+        postal_code="101000",
+        country="RU",
+        is_default=True,
+    )
+    db_session.add(a)
+    await db_session.flush()
+    await db_session.refresh(a)
+    return a
+
+
+@pytest_asyncio.fixture
+async def address_for_admin(db_session: AsyncSession, admin_user: UserModel) -> Address:
+    """Дефолтный адрес для admin_user — для тестов ownership."""
+    a = Address(
+        user_id=admin_user.id,
+        address_line1="ул. Пушкина, 10",
+        city="Санкт-Петербург",
+        postal_code="190000",
+        country="RU",
+        is_default=True,
+    )
+    db_session.add(a)
+    await db_session.flush()
+    await db_session.refresh(a)
+    return a
+
+
+# ============ Cart fixtures (для order-тестов) ============
+
+@pytest_asyncio.fixture
+async def cart_with_one_item(
+    db_session: AsyncSession, verified_user: UserModel, product
+) -> CartItem:
+    """Одна позиция в корзине verified_user (quantity=2)."""
+    ci = CartItem(
+        user_id=verified_user.id,
+        product_id=product.id,
+        quantity=2,
+        product_cost=product.cost,
+    )
+    db_session.add(ci)
+    await db_session.flush()
+    await db_session.refresh(ci)
+    return ci
+
+
+@pytest_asyncio.fixture
+async def cart_with_two_items(
+    db_session: AsyncSession, verified_user: UserModel, category, product
+) -> tuple[CartItem, CartItem]:
+    """Две позиции в корзине verified_user."""
+    from decimal import Decimal
+
+    from app.models.product import Product as ProductModel
+
+    p2 = ProductModel(
+        name="Mouse", description="Test mouse",
+        cost=Decimal("50.00"), category_id=category.id,
+        status=ProductStatus.AVAILABLE,
+    )
+    db_session.add(p2)
+    await db_session.flush()
+
+    ci1 = CartItem(
+        user_id=verified_user.id,
+        product_id=product.id,           # Laptop 1000.00
+        quantity=2,
+        product_cost=product.cost,
+    )
+    ci2 = CartItem(
+        user_id=verified_user.id,
+        product_id=p2.id,                # Mouse 50.00
+        quantity=3,
+        product_cost=p2.cost,
+    )
+    db_session.add_all([ci1, ci2])
+    await db_session.flush()
+    await db_session.refresh(ci1)
+    await db_session.refresh(ci2)
+    return ci1, ci2
+
+
+# ============ Order fixtures ============
+
+@pytest_asyncio.fixture
+async def order(
+    db_session: AsyncSession,
+    verified_user: UserModel,
+    address: Address,
+    product,
+) -> Order:
+    """Готовый заказ в статусе pending с одной позицией."""
+    from decimal import Decimal
+
+    o = Order(
+        user_id=verified_user.id,
+        total=Decimal("2000.00"),
+        status=OrderStatus.PENDING,
+        shipping_address_id=address.id,
+    )
+    db_session.add(o)
+    await db_session.flush()
+
+    oi = OrderItem(
+        order_id=o.id,
+        product_id=product.id,
+        product_cost=Decimal("1000.00"),
+        product_count=2,
+    )
+    db_session.add(oi)
+    await db_session.flush()
+    await db_session.refresh(o)
+    return o
+
+
+@pytest_asyncio.fixture
+async def paid_order(
+    db_session: AsyncSession,
+    verified_user: UserModel,
+    address: Address,
+    product,
+) -> Order:
+    """Заказ в статусе paid с одним Payment (completed)."""
+    from datetime import datetime, timezone
+    from decimal import Decimal
+
+    o = Order(
+        user_id=verified_user.id,
+        total=Decimal("1000.00"),
+        status=OrderStatus.PAID,
+        shipping_address_id=address.id,
+    )
+    db_session.add(o)
+    await db_session.flush()
+
+    oi = OrderItem(
+        order_id=o.id,
+        product_id=product.id,
+        product_cost=Decimal("1000.00"),
+        product_count=1,
+    )
+    db_session.add(oi)
+    await db_session.flush()
+
+    p = Payment(
+        order_id=o.id,
+        amount=Decimal("1000.00"),
+        currency="RUB",
+        payment_method=PaymentMethod.CARD,
+        status=PaymentStatus.COMPLETED,
+        external_id="test-external-paid-1",
+        paid_at=datetime.now(timezone.utc),
+    )
+    db_session.add(p)
+    await db_session.flush()
+    await db_session.refresh(o)
+    return o
