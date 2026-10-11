@@ -1,16 +1,21 @@
-from sqlalchemy import BigInteger, Index, Numeric, ForeignKey, Enum as SAEnum
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing import TYPE_CHECKING
+# app/models/order.py
+import uuid
 from decimal import Decimal
+from typing import TYPE_CHECKING
+
+from sqlalchemy import BigInteger, ForeignKey, Index, Numeric, text
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimeStampMixin
 from app.db.enum import OrderStatus
 
 if TYPE_CHECKING:
-    from app.models.user import User
     from app.models.address import Address
     from app.models.order_item import OrderItem
     from app.models.payment import Payment
+    from app.models.user import User
 
 
 class Order(Base, TimeStampMixin):
@@ -21,6 +26,12 @@ class Order(Base, TimeStampMixin):
         primary_key=True,
         autoincrement=True,
         nullable=False
+    )
+
+    public_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        server_default=text("gen_random_uuid()"),
+        nullable=False,
     )
 
     user_id: Mapped[int] = mapped_column(
@@ -59,6 +70,7 @@ class Order(Base, TimeStampMixin):
     payments: Mapped[list["Payment"]] = relationship(back_populates="order")
 
     __table_args__ = (
+        Index("ix_orders_public_id", "public_id", unique=True),   
         Index("idx_orders_user_id", "user_id"),
         Index("idx_orders_status", "status"),
         Index("idx_orders_shipping_address", "shipping_address_id"),

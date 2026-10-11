@@ -1,8 +1,12 @@
-from sqlalchemy import BigInteger, Numeric, Text, DateTime, ForeignKey, Index, Enum as SAEnum
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing import TYPE_CHECKING, Optional
+import uuid
 from datetime import datetime
 from decimal import Decimal
+from typing import TYPE_CHECKING, Optional
+
+from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Numeric, Text, text
+from sqlalchemy import Enum as SAEnum
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimeStampMixin
 from app.db.enum import PaymentMethod, PaymentStatus
@@ -20,6 +24,12 @@ class Payment(TimeStampMixin, Base):
         primary_key=True,
         autoincrement=True,
         nullable=False
+    )
+
+    public_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        server_default=text("gen_random_uuid()"),
+        nullable=False,
     )
 
     order_id: Mapped[int] = mapped_column(
@@ -70,5 +80,6 @@ class Payment(TimeStampMixin, Base):
         Index("idx_payments_status", "status"),
         # Уникальный external_id только для не-null значений
         Index("idx_payments_external_id", "external_id", unique=True, postgresql_where=(external_id.isnot(None))),
+        Index("ix_payments_public_id", "public_id", unique=True),
     )
 
