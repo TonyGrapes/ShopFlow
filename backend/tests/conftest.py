@@ -706,3 +706,70 @@ async def promo_code_fixed(db_session: AsyncSession) -> PromoCode:
     await db_session.flush()
     await db_session.refresh(p)
     return p
+
+from app.db.enum import OrderStatus
+from app.models.order import Order
+from app.models.order_item import OrderItem
+from app.models.review import Review
+
+
+@pytest_asyncio.fixture
+async def delivered_order(
+    db_session: AsyncSession,
+    verified_user: UserModel,
+    address,
+    product,
+) -> Order:
+    """
+    Заказ в статусе DELIVERED с product.
+
+    Нужен для тестов отзывов: только после delivered-заказа
+    юзер может оставить отзыв.
+    """
+    from decimal import Decimal
+
+    o = Order(
+        user_id=verified_user.id,
+        total=Decimal("1000.00"),
+        status=OrderStatus.DELIVERED,
+        shipping_address_id=address.id,
+    )
+    db_session.add(o)
+    await db_session.flush()
+
+    db_session.add(OrderItem(
+        order_id=o.id,
+        product_id=product.id,
+        product_cost=Decimal("1000.00"),
+        product_count=1,
+    ))
+    await db_session.flush()
+    await db_session.refresh(o)
+    return o
+
+
+@pytest_asyncio.fixture
+async def review(
+    db_session: AsyncSession,
+    verified_user: UserModel,
+    product,
+    delivered_order: Order,
+) -> Review:
+    """
+    Готовый активный отзыв verified_user на product.
+
+    is_verified=True (соответствует логике: только после delivered).
+    """
+    r = Review(
+        user_id=verified_user.id,
+        product_id=product.id,
+        order_id=delivered_order.id,
+        rating=5,
+        title="Great laptop",
+        comment="Very good!",
+        is_verified=True,
+    )
+    db_session.add(r)
+    await db_session.flush()
+    await db_session.refresh(r)
+    return r
