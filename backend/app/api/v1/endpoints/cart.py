@@ -18,7 +18,8 @@ from app.api.v1.deps import (
 from app.core.config import get_settings
 from app.db.session import get_db
 from app.schemas.cart import CartItemCreate, CartItemUpdate, CartResponse
-from app.services import cart_service
+from app.schemas.promo import PromoCodePreviewRequest, PromoCodePreviewResponse
+from app.services import cart_service, promo_service
 from app.services.cart_service import GuestCartStore
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -169,6 +170,64 @@ async def update_item(
 
     return await _read_cart(owner, db, guest_store)
 
+# ============================================================
+#  POST /cart/apply-promo — preview промокода
+# ============================================================
+
+@router.post("/apply-promo", response_model=PromoCodePreviewResponse)
+async def apply_promo_preview(
+    data: PromoCodePreviewRequest,
+    owner: CartOwner = Depends(get_cart_owner),
+    db: AsyncSession = Depends(get_db),
+    guest_store: GuestCartStore = Depends(get_guest_cart_store),
+):
+    """
+    Предпросмотр применения промокода.
+
+    НЕ мутирует: used_count не инкрементируется. Только валидация
+    и расчёт скидки для текущей корзины.
+
+    Финальная валидация происходит в POST /orders — потому что
+    между preview и заказом могут измениться цены, промокод
+    истечь или кто-то исчерпать лимит.
+
+    Статусы:
+    - 200: промокод валиден, возвращаем расчёт.
+    - 422 empty_cart: корзина пуста, применять не к чему.
+    - 422 invalid_promo: код невалиден (reason: not_found,
+      not_yet_active, expired, min_order_amount).
+    - 401: битый Bearer (не маскируем под гостя).
+    - 503: Redis недоступен (только для гостя).
+    """
+    # Читаем корзину — используем ту же логику, что в GET /cart
+    cart = await _read_cart(owner, db, guest_store)
+
+    if cart.total_items == 0:
+        raise HTTPException(
+            status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail={
+                "code": "empty_cart",
+                "message": "Cart is empty, nothing to apply promo to",
+            },
+        )
+
+    # Валидация + расчёт. Без reserve.
+    promo, discount = await promo_service.validate_and_calculate(
+        db=db,
+        code=data.code,
+        subtotal=cart.total_cost,
+    )
+
+    final_total = cart.total_cost - discount
+
+    return PromoCodePreviewResponse(
+        code=promo.code,
+        discount_type=promo.discount_type,
+        discount_value=f"{promo.discount_value:.2f}",
+        subtotal=cart.total_cost,
+        discount_amount=discount,
+        final_total=final_total,
+    )
 
 # ============================================================
 #  DELETE /cart/items/{product_id}

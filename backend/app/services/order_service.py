@@ -35,6 +35,7 @@ from app.schemas.order import (
     OrderResponse,
 )
 from app.schemas.payment import PaymentResponse
+from app.services import promo_service
 from app.services.payment_service import serialize_payment
 from app.services.storage_service import get_storage
 
@@ -80,6 +81,7 @@ async def create_order_from_cart(
     db: AsyncSession,
     user: User,
     address_id: int,
+    promo_code: str | None = None,
 ) -> Order:
     """
     Создаёт заказ из корзины юзера. Всё в одной транзакции.
@@ -88,12 +90,15 @@ async def create_order_from_cart(
     1. Валидация адреса (существование + ownership).
     2. Чтение cart_items + products (skip soft-deleted).
     3. Валидация каждой позиции (status == available).
-    4. Создание Order (total — сумма).
-    5. Создание OrderItem[].
-    6. Очистка cart_items юзера.
+    4. Расчёт subtotal.
+    5. Если promo_code: валидация + атомарный reserve used_count.
+    6. total = subtotal - discount.
+    7. Создание Order (с promo_code и discount_amount).
+    8. Создание OrderItem[].
+    9. Очистка cart_items юзера.
+    10. flush.
 
-    НЕ трогаем guest-cart в Redis: она уже очищена при login
-    (merge + BackgroundTask).
+    НЕ трогаем guest-cart в Redis: она уже очищена при login.
     """
     # 1. Валидация адреса
     address = await db.get(Address, address_id)
@@ -148,25 +153,51 @@ async def create_order_from_cart(
             },
         )
 
-    # 4. Считаем total (Decimal для точности)
-    total = sum(
+    # 4. Считаем subtotal (Decimal для точности)
+    subtotal = sum(
         (ci.product_cost * ci.quantity for ci, _ in valid_items),
         start=Decimal("0.00"),
     )
 
-    # 5. Создаём Order
+    # 5. Промокод (если передан) — валидация + атомарный reserve
+    discount: Decimal | None = None
+    applied_code: str | None = None
+
+    if promo_code is not None:
+        promo, discount = await promo_service.validate_and_calculate(
+            db, promo_code, subtotal
+        )
+        reserved = await promo_service.reserve_promo_use(db, promo.id)
+        if not reserved:
+            # Гонка: между валидацией и reserve кто-то исчерпал лимит.
+            raise HTTPException(
+                status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail={
+                    "code": "invalid_promo",
+                    "promo_code": promo_code,
+                    "reason": "max_uses_exceeded",
+                },
+            )
+        applied_code = promo.code
+
+    # 6. total = subtotal - discount
+    total = subtotal - (discount or Decimal("0.00"))
+
+    # 7. Создаём Order
     order = Order(
         user_id=user.id,
         total=total,
         status=OrderStatus.PENDING,
         shipping_address_id=address_id,
+        promo_code=applied_code,
+        discount_amount=discount,
     )
     db.add(order)
-    await db.flush()   # order.id и public_id уже установлены
+    await db.flush()
 
-    # 6. Создаём OrderItems
+    # 8. Создаём OrderItems
     #    product_cost — snapshot из cart_items, НЕ из products.cost.
-    #    product_count = cart_item.quantity (поле в OrderItem так называется).
+    #    product_count = cart_item.quantity.
     for cart_item, product in valid_items:
         db.add(OrderItem(
             order_id=order.id,
@@ -175,16 +206,15 @@ async def create_order_from_cart(
             product_count=cart_item.quantity,
         ))
 
-    # 7. Очищаем корзину юзера
+    # 9. Очищаем корзину юзера
     await db.execute(
         delete(CartItem).where(CartItem.user_id == user.id)
     )
 
     await db.flush()
 
-    # 8. Перезагружаем order со связями для сериализации
+    # 10. Перезагружаем order со связями для сериализации
     return await _load_order(db, order.id)
-
 
 # ============================================================
 #  Чтение заказов юзера
@@ -343,10 +373,19 @@ def serialize_order(order: Order) -> OrderResponse:
     Полный заказ. Требует предзагруженных items, shipping_address, payments
     (через selectinload в get_order_detail / get_order_for_admin).
     """
+    # ✅ subtotal = сумма позиций до скидки. Производная, не хранится.
+    subtotal = sum(
+        (oi.product_cost * oi.product_count for oi in order.items),
+        start=Decimal("0.00"),
+    )
+
     return OrderResponse(
         public_id=order.public_id,
         status=order.status,
+        subtotal=subtotal,
+        discount_amount=order.discount_amount,
         total=order.total,
+        promo_code=order.promo_code,
         shipping_address=AddressBrief.model_validate(order.shipping_address),
         items=[_serialize_order_item(oi) for oi in order.items],
         payments=[serialize_payment(p) for p in order.payments],
@@ -354,12 +393,12 @@ def serialize_order(order: Order) -> OrderResponse:
         updated_at=order.updated_at,
     )
 
-
 def serialize_order_list_item(order: Order) -> OrderListItem:
     """Облегчённая карточка. items загружены для items_count."""
     return OrderListItem(
         public_id=order.public_id,
         status=order.status,
+        discount_amount=order.discount_amount,
         total=order.total,
         items_count=len(order.items),
         created_at=order.created_at,

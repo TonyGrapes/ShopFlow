@@ -10,9 +10,6 @@
 import logging
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
-
 from app.api.v1.deps import User, get_current_active_user
 from app.db.enum import OrderStatus
 from app.db.session import get_db
@@ -24,6 +21,8 @@ from app.schemas.order import (
 )
 from app.schemas.payment import PaymentRequest, PaymentResponse
 from app.services import order_service, payment_service
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -43,24 +42,14 @@ async def create_order(
     current: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """
-    Создаёт заказ из корзины юзера.
-
-    Требует:
-    - активного юзера (401 для гостя, 403 для бан/pending-verify),
-    - непустой корзины (422),
-    - валидного address_id, принадлежащего юзеру (422),
-    - всех товаров в статусе available (422 со списком).
-
-    Корзина очищается в той же транзакции. При ошибке — не очищается.
-    """
+    """..."""
     order = await order_service.create_order_from_cart(
         db=db,
         user=current.orm,
         address_id=data.address_id,
+        promo_code=data.promo_code,      # ← новое
     )
     return order_service.serialize_order(order)
-
 
 # ============================================================
 #  GET /orders — мои заказы
