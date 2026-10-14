@@ -1,9 +1,9 @@
 # app/models/order.py
 import uuid
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import BigInteger, ForeignKey, Index, Numeric, text
+from sqlalchemy import BigInteger, ForeignKey, Index, Numeric, text, Text
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -39,10 +39,24 @@ class Order(Base, TimeStampMixin):
         nullable=False
     )
 
+    # ✅ Финальная сумма после скидки. Не subtotal.
     total: Mapped[Decimal] = mapped_column(
         Numeric(10, 2),
         server_default="0",
         nullable=False
+    )
+
+    # ✅ Snapshot промокода: код, а не FK.
+    #    Аудит + защита от удаления промокода.
+    promo_code: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
+    # ✅ Скидка. NULL = «скидки не было», не 0.00.
+    discount_amount: Mapped[Optional[Decimal]] = mapped_column(
+        Numeric(10, 2),
+        nullable=True,
     )
 
     status: Mapped[OrderStatus] = mapped_column(
