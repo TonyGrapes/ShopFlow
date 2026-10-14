@@ -3,12 +3,14 @@
 Схемы заказов.
 
 OrderResponse отдаёт public_id (UUID), не внутренний id.
-OrderListItem — облегчённая версия без items (для списка).
+OrderListItem — облегчённая версия без items/payments (для списка).
+subtotal — computed field, не хранится в БД.
 """
 from datetime import datetime
+from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 from app.db.enum import OrderStatus, ProductStatus
 from app.schemas.address import AddressBrief
@@ -20,7 +22,16 @@ from app.schemas.payment import PaymentResponse
 # ============================================================
 
 class OrderCreate(BaseModel):
-    address_id: int = Field(gt=0, description="ID адреса доставки (должен принадлежать юзеру)")
+    address_id: int = Field(
+        gt=0,
+        description="ID адреса доставки (должен принадлежать текущему юзеру)",
+    )
+    promo_code: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=100,
+        description="Промокод. Валидируется повторно в момент оформления.",
+    )
 
     model_config = ConfigDict(extra="forbid")
 
@@ -40,7 +51,13 @@ class OrderItemProductBrief(BaseModel):
 
 
 class OrderItemResponse(BaseModel):
-    """Позиция заказа. product_cost — snapshot цены на момент заказа."""
+    """
+    Позиция заказа.
+
+    product_cost — snapshot цены на момент оформления заказа.
+    product_count — количество (в модели OrderItem поле называется
+    именно так, в отличие от CartItem.quantity).
+    """
     public_id: UUID
     product: OrderItemProductBrief
     product_cost: Money
@@ -51,9 +68,19 @@ class OrderItemResponse(BaseModel):
 
 
 class OrderResponse(BaseModel):
+    """
+    Полный заказ.
+
+    subtotal — computed: sum(items.product_cost * items.product_count).
+    discount_amount — NULL если промокода не было.
+    total — финальная сумма после скидки.
+    """
     public_id: UUID
     status: OrderStatus
+    subtotal: Money                    # ← заполняется вручную в serialize_order
+    discount_amount: Money | None
     total: Money
+    promo_code: str | None
     shipping_address: AddressBrief
     items: list[OrderItemResponse]
     payments: list[PaymentResponse] = []
@@ -67,6 +94,7 @@ class OrderListItem(BaseModel):
     """Облегчённая карточка для списка. Без items и payments."""
     public_id: UUID
     status: OrderStatus
+    discount_amount: Money | None
     total: Money
     items_count: int
     created_at: datetime
