@@ -654,3 +654,55 @@ async def paid_order(
     await db_session.flush()
     await db_session.refresh(o)
     return o
+
+
+from datetime import datetime, timedelta, timezone
+
+from app.db.enum import DiscountType
+from app.models.promo_code import PromoCode
+
+
+@pytest_asyncio.fixture
+async def promo_code(db_session: AsyncSession) -> PromoCode:
+    """
+    Активный промокод 10% без лимитов и минимальной суммы.
+
+    Валиден «сейчас» — valid_from в прошлом, valid_until в будущем.
+    """
+    now = datetime.now(timezone.utc)
+    p = PromoCode(
+        code="SUMMER10",
+        discount_type=DiscountType.PERCENTAGE,
+        discount_value=Decimal("10.00"),
+        min_order_amount=None,
+        max_uses=None,
+        used_count=0,
+        valid_from=now - timedelta(days=1),
+        valid_until=now + timedelta(days=30),
+        is_active=True,
+    )
+    db_session.add(p)
+    await db_session.flush()
+    await db_session.refresh(p)
+    return p
+
+
+@pytest_asyncio.fixture
+async def promo_code_fixed(db_session: AsyncSession) -> PromoCode:
+    """Фиксированный промокод на 500 ₽."""
+    now = datetime.now(timezone.utc)
+    p = PromoCode(
+        code="FIX500",
+        discount_type=DiscountType.FIXED,
+        discount_value=Decimal("500.00"),
+        min_order_amount=None,
+        max_uses=None,
+        used_count=0,
+        valid_from=now - timedelta(days=1),
+        valid_until=now + timedelta(days=30),
+        is_active=True,
+    )
+    db_session.add(p)
+    await db_session.flush()
+    await db_session.refresh(p)
+    return p
