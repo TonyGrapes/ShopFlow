@@ -10,11 +10,13 @@ from app import models  # noqa: F401
 from app.api.v1.endpoints import (
     addresses,
     admin_orders,
+    admin_reviews,
     auth,
     cart,
     favorites,
     orders,
     products,
+    reviews,
 )
 from app.core.config import get_settings
 from app.core.redis import close_redis, get_redis
@@ -65,6 +67,8 @@ app.include_router(favorites.router, prefix="/api/v1")
 app.include_router(addresses.router, prefix="/api/v1")
 app.include_router(orders.router, prefix="/api/v1")
 app.include_router(admin_orders.router, prefix="/api/v1")
+app.include_router(reviews.router, prefix="/api/v1")
+app.include_router(admin_reviews.router, prefix="/api/v1")
 
 
 @app.get("/")
