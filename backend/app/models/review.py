@@ -1,21 +1,40 @@
-from sqlalchemy import BigInteger, Integer, Text, Boolean, DateTime, ForeignKey, Index, CheckConstraint, func, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing import TYPE_CHECKING, Optional
+import uuid
 from datetime import datetime
+from typing import TYPE_CHECKING, Optional
+
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    Text,
+    UniqueConstraint,
+    text,
+)
+from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimeStampMixin
 
 if TYPE_CHECKING:
-    from app.models.user import User
-    from app.models.product import Product
     from app.models.order import Order
+    from app.models.product import Product
+    from app.models.user import User
 
 
 class Review(TimeStampMixin, Base):
     __tablename__ = "reviews"
 
     id: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=True, nullable=False)
-    
+
+    public_id: Mapped[uuid.UUID] = mapped_column(
+        UUID(as_uuid=True),
+        server_default=text("gen_random_uuid()"),
+        nullable=False,
+    )
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
     product_id: Mapped[int] = mapped_column(ForeignKey("products.id", ondelete="CASCADE"), nullable=False)
     order_id: Mapped[Optional[int]] = mapped_column(ForeignKey("orders.id", ondelete="SET NULL"), nullable=True)
@@ -32,6 +51,7 @@ class Review(TimeStampMixin, Base):
     order: Mapped[Optional["Order"]] = relationship()
 
     __table_args__ = (
+        Index("ix_reviews_public_id", "public_id", unique=True),
         CheckConstraint("rating BETWEEN 1 AND 5", name="chk_review_rating_range"),
         Index(
             "uq_review_user_product",
