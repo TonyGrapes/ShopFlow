@@ -15,9 +15,11 @@ from app.api.v1.deps import (
 from app.core.config import get_settings
 from app.db.enum import ProductStatus, UserRole
 from app.db.session import get_db
-from app.models.product import ProductImage
+from app.models.product import Product, ProductImage
 from app.schemas.common import Paginated
 from app.schemas.product import (
+    ProductBulkStatusResponse,
+    ProductBulkStatusUpdate,
     ProductCreate,
     ProductListItem,
     ProductResponse,
@@ -46,10 +48,11 @@ from fastapi import (
     File,
     HTTPException,
     Query,
-    Response,  # ← новое
+    Response,
     UploadFile,
     status,
 )
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -65,7 +68,7 @@ require_write_role = require_roles(UserRole.ADMIN, UserRole.MODERATOR, UserRole.
 
 @router.get("", response_model=Paginated[ProductListItem])
 async def list_products(
-    response: Response,                         # ← новое
+    response: Response,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     category_id: Optional[int] = Query(None, description="Фильтр по категории"),
@@ -74,6 +77,14 @@ async def list_products(
     status_filter: Optional[ProductStatus] = Query(None, alias="status"),
     sort_by: str = Query("id", pattern="^(id|name|cost|created_at)$"),
     sort_order: str = Query("asc", pattern="^(asc|desc)$"),
+    # ← НОВОЕ: include_deleted для админки. По умолчанию False — публичное поведение.
+    include_deleted: bool = Query(
+        False,
+        description=(
+            "Include soft-deleted products (admin use). "
+            "Bypasses cache to avoid mixing public and admin views."
+        ),
+    ),
     db: AsyncSession = Depends(get_db),
     cache: CacheService = Depends(get_cache_service),
 ):
@@ -83,8 +94,34 @@ async def list_products(
     ✅ Cache hit → мгновенный ответ + X-Cache: HIT.
     ✅ Cache miss → запрос в БД + запись в кэш + X-Cache: MISS.
     ✅ Инвалидация при мутациях (POST/PATCH/DELETE) через BackgroundTasks.
+    ✅ include_deleted=True → X-Cache: BYPASS (кэш не используется).
     """
     settings = get_settings()
+
+    # ← ИЗМЕНЕНО: при include_deleted полностью обходим кэш.
+    #   Смешивать публичный и админский списки в одном ключе нельзя —
+    #   ключ не учитывает этот флаг, и админ получил бы закэшированный
+    #   публичный результат (без deleted).
+    if include_deleted:
+        items, total = await product_service.list_products(
+            db,
+            page=page,
+            page_size=page_size,
+            category_id=category_id,
+            min_cost=min_cost,
+            max_cost=max_cost,
+            status=status_filter,
+            sort_by=sort_by,
+            sort_order=sort_order,
+            include_deleted=True,
+        )
+        response.headers["X-Cache"] = "BYPASS"
+        return Paginated[ProductListItem](
+            items=[serialize_product_list_item(p) for p in items],
+            total=total,
+            page=page,
+            page_size=page_size,
+        )
 
     cache_key = build_product_list_cache_key(
         page=page,
@@ -100,7 +137,7 @@ async def list_products(
     # 1. Проверяем кэш
     cached = await cache.get_json(cache_key)
     if cached is not None:
-        response.headers["X-Cache"] = "HIT"      # ← доказательство
+        response.headers["X-Cache"] = "HIT"
         return Paginated[ProductListItem].model_validate(cached)
 
     # 2. Cache miss — запрос в БД
@@ -114,6 +151,7 @@ async def list_products(
         status=status_filter,
         sort_by=sort_by,
         sort_order=sort_order,
+        include_deleted=False,
     )
 
     result = Paginated[ProductListItem](
@@ -132,8 +170,63 @@ async def list_products(
         ttl_seconds=ttl,
     )
 
-    response.headers["X-Cache"] = "MISS"         # ← доказательство
+    response.headers["X-Cache"] = "MISS"
     return result
+
+
+# ============================================================
+#  Bulk — ДО роутов с {product_id}
+# ============================================================
+#  Порядок: статические сегменты (bulk) должны быть объявлены
+#  до динамических ({product_id}), иначе FastAPI попытается
+#  распарсить "bulk" как int → 422.
+# ============================================================
+
+@router.post(
+    "/bulk/status",
+    response_model=ProductBulkStatusResponse,
+    dependencies=[Depends(require_write_role)],
+)
+async def bulk_update_status(
+    data: ProductBulkStatusUpdate,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_db),
+    cache: CacheService = Depends(get_cache_service),
+):
+    """
+    Bulk update статуса. Один SQL, атомарно.
+
+    Обновляет только активные товары (deleted_at IS NULL).
+    Soft-deleted НЕ трогаем — их надо сначала восстановить.
+
+    Инвалидация кэша каталога — через BackgroundTasks после commit.
+    """
+    result = await db.execute(
+        update(Product)
+        .where(
+            Product.id.in_(data.product_ids),
+            Product.deleted_at.is_(None),
+        )
+        .values(status=data.status)
+        .returning(Product.id)
+    )
+    updated_ids = [row[0] for row in result.all()]
+    await db.flush()
+
+    background_tasks.add_task(
+        cache.delete_by_pattern,
+        product_list_cache_pattern(),
+    )
+
+    return ProductBulkStatusResponse(
+        updated=len(updated_ids),
+        product_ids=updated_ids,
+    )
+
+
+# ============================================================
+#  Read: единичный товар — ПОСЛЕ bulk
+# ============================================================
 
 @router.get("/{product_id}", response_model=ProductResponse)
 async def get_product(
@@ -162,14 +255,13 @@ async def get_product(
 )
 async def create_product(
     data: ProductCreate,
-    background_tasks: BackgroundTasks,           # ← для инвалидации
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     cache: CacheService = Depends(get_cache_service),
 ):
     """Создание. Инвалидация кэша после commit."""
     product = await product_service.create_product(db, data)
 
-    # ✅ Инвалидация ПОСЛЕ commit (BackgroundTasks стартуют после ответа)
     background_tasks.add_task(
         cache.delete_by_pattern,
         product_list_cache_pattern(),
@@ -258,8 +350,6 @@ async def upload_product_image(
     if not file.filename:
         raise HTTPException(400, "File name is required")
 
-    # Ранняя отсечка
-    from app.services.storage_service import MAX_SIZE
     if file.size is not None and file.size > MAX_SIZE:
         raise HTTPException(
             status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
@@ -300,7 +390,6 @@ async def upload_product_image(
             logger.exception("Compensation failed for key=%s", key)
         raise HTTPException(500, "Failed to save image metadata")
 
-    # ✅ Инвалидация — cover_url мог измениться
     background_tasks.add_task(
         cache.delete_by_pattern,
         product_list_cache_pattern(),
@@ -331,10 +420,8 @@ async def delete_product_image(
     await db.delete(image)
     await db.flush()
 
-    # ✅ Файл — после commit
     background_tasks.add_task(_delete_object_safe, storage, key)
 
-    # ✅ Кэш — после commit (cover_url меняется)
     background_tasks.add_task(
         cache.delete_by_pattern,
         product_list_cache_pattern(),

@@ -39,16 +39,11 @@ async def list_products(
     status: Optional[ProductStatus] = None,
     sort_by: str = "id",
     sort_order: str = "asc",
+    include_deleted: bool = False,      # ← НОВОЕ
 ) -> Tuple[List[Product], int]:
-    """
-    Список товаров с фильтрами, сортировкой и пагинацией.
-
-    ✅ Динамическая сборка WHERE — только для переданных параметров.
-    ✅ Сортировка из белого списка (защита от инъекций).
-    ✅ selectinload для category и images — нет N+1.
-    ✅ Два запроса: COUNT + items.
-    """
-    base_query = select(Product).where(Product.deleted_at.is_(None))
+    base_query = select(Product)
+    if not include_deleted:
+        base_query = base_query.where(Product.deleted_at.is_(None))
 
     if category_id is not None:
         base_query = base_query.where(Product.category_id == category_id)
@@ -59,7 +54,11 @@ async def list_products(
     if status is not None:
         base_query = base_query.where(Product.status == status)
 
-    # ✅ Белый список колонок — защита от SQL-инъекции через sort_by
+    # COUNT
+    count_query = select(func.count()).select_from(base_query.subquery())
+    total = (await db.execute(count_query)).scalar_one()
+
+    # Сортировка
     sort_column = {
         "id": Product.id,
         "name": Product.name,
@@ -67,16 +66,12 @@ async def list_products(
         "created_at": Product.created_at,
     }.get(sort_by, Product.id)
     order_func = desc if sort_order == "desc" else asc
-    base_query = base_query.order_by(order_func(sort_column))
 
-    # COUNT — отдельный запрос
-    count_query = select(func.count()).select_from(base_query.subquery())
-    total = (await db.execute(count_query)).scalar_one()
-
-    # Items с LIMIT/OFFSET и selectinload
+    # Items
     items_query = (
         base_query
         .options(selectinload(Product.category), selectinload(Product.images))
+        .order_by(order_func(sort_column), Product.id.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
     )

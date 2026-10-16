@@ -63,3 +63,17 @@ class ProductListItem(BaseModel):
     status: ProductStatus
     cover_url: str | None = None          # заполняется сервисом
     model_config = ConfigDict(from_attributes=True)
+
+
+class ProductBulkStatusUpdate(BaseModel):
+    """Bulk update статуса нескольких товаров."""
+    product_ids: list[int] = Field(..., min_length=1, max_length=100)
+    status: ProductStatus
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class ProductBulkStatusResponse(BaseModel):
+    """Результат bulk update."""
+    updated: int           # сколько реально обновлено
+    product_ids: list[int] # какие обновились (для отладки)
