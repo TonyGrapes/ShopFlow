@@ -773,3 +773,68 @@ async def review(
     await db_session.flush()
     await db_session.refresh(r)
     return r
+
+
+# tests/conftest.py — добавить в конец
+
+from app.models.category import Category
+from sqlalchemy_utils import Ltree
+
+# ============ Category fixtures ============
+
+@pytest_asyncio.fixture
+async def category_root(db_session: AsyncSession) -> Category:
+    """Корневая категория: electronics."""
+    cat = Category(
+        path=Ltree("electronics"),
+        category_name="Electronics",
+    )
+    db_session.add(cat)
+    await db_session.flush()
+    await db_session.refresh(cat)
+    return cat
+
+
+@pytest_asyncio.fixture
+async def category_child(
+    db_session: AsyncSession, category_root: Category
+) -> Category:
+    """Дочерняя: electronics.laptops."""
+    cat = Category(
+        parent_id=category_root.id,
+        path=Ltree("electronics.laptops"),
+        category_name="Laptops",
+    )
+    db_session.add(cat)
+    await db_session.flush()
+    await db_session.refresh(cat)
+    return cat
+
+
+@pytest_asyncio.fixture
+async def category_grandchild(
+    db_session: AsyncSession, category_child: Category
+) -> Category:
+    """Внучатая: electronics.laptops.gaming."""
+    cat = Category(
+        parent_id=category_child.id,
+        path=Ltree("electronics.laptops.gaming"),
+        category_name="Gaming Laptops",
+    )
+    db_session.add(cat)
+    await db_session.flush()
+    await db_session.refresh(cat)
+    return cat
+
+
+@pytest_asyncio.fixture
+async def category_for_admin(db_session: AsyncSession) -> Category:
+    """Отдельная корневая категория — для тестов перемещения и ownership."""
+    cat = Category(
+        path=Ltree("furniture"),
+        category_name="Furniture",
+    )
+    db_session.add(cat)
+    await db_session.flush()
+    await db_session.refresh(cat)
+    return cat
