@@ -3,13 +3,16 @@ import json
 from pathlib import Path
 
 import pytest
+from functools import lru_cache
+from app.main import app  # ← импорт вместо фикстуры
 
-from app.main import app   # ← импорт вместо фикстуры
-
+@lru_cache
+def _openapi_schema():
+    return app.openapi()
 
 def test_product_list_item_fields_match_openapi():
     """ProductListItem: поля в OpenAPI совпадают."""
-    schema = app.openapi()   # ← используем импортированный app
+    schema = _openapi_schema()
     product_list_item = schema["components"]["schemas"]["ProductListItem"]
 
     openapi_fields = set(product_list_item["properties"].keys())
@@ -20,7 +23,7 @@ def test_product_list_item_fields_match_openapi():
 
 def test_product_response_fields_match_openapi():
     """ProductResponse: поля совпадают."""
-    schema = app.openapi()
+    schema = _openapi_schema()
     product_response = schema["components"]["schemas"]["ProductResponse"]
 
     openapi_fields = set(product_response["properties"].keys())
@@ -33,7 +36,7 @@ def test_product_response_fields_match_openapi():
 
 def test_product_status_enum_matches():
     """ProductStatus значения совпадают."""
-    schema = app.openapi()
+    schema = _openapi_schema()
     product_status = schema["components"]["schemas"].get("ProductStatus", {})
     if "enum" in product_status:
         values = set(product_status["enum"])
