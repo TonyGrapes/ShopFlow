@@ -775,8 +775,6 @@ async def review(
     return r
 
 
-# tests/conftest.py — добавить в конец
-
 from app.models.category import Category
 from sqlalchemy_utils import Ltree
 
@@ -838,3 +836,83 @@ async def category_for_admin(db_session: AsyncSession) -> Category:
     await db_session.flush()
     await db_session.refresh(cat)
     return cat
+
+
+# tests/conftest.py — добавить в конец
+
+from app.db.enum import RefundStatus
+from app.models.refund import Refund
+
+
+@pytest_asyncio.fixture
+async def payment_for_refund(
+    db_session: AsyncSession,
+    verified_user: UserModel,
+    address: Address,
+    product,
+) -> Payment:
+    """
+    Платёж в статусе completed для тестов возвратов.
+
+    Отдельно от `paid_order`: у paid_order платёж привязан к order,
+    который уже paid. Здесь нам нужен просто completed payment
+    с суммой 1000.00.
+    """
+    from datetime import datetime, timezone
+    from decimal import Decimal
+
+    from app.db.enum import OrderStatus
+    from app.models.order import Order
+    from app.models.order_item import OrderItem
+
+    o = Order(
+        user_id=verified_user.id,
+        total=Decimal("1000.00"),
+        status=OrderStatus.PAID,
+        shipping_address_id=address.id,
+    )
+    db_session.add(o)
+    await db_session.flush()
+
+    db_session.add(OrderItem(
+        order_id=o.id, product_id=product.id,
+        product_cost=Decimal("1000.00"), product_count=1,
+    ))
+    await db_session.flush()
+
+    p = Payment(
+        order_id=o.id,
+        amount=Decimal("1000.00"),
+        currency="RUB",
+        payment_method=PaymentMethod.CARD,
+        status=PaymentStatus.COMPLETED,
+        external_id="test-payment-refund-1",
+        paid_at=datetime.now(timezone.utc),
+    )
+    db_session.add(p)
+    await db_session.flush()
+    await db_session.refresh(p)
+    return p
+
+
+@pytest_asyncio.fixture
+async def completed_refund(
+    db_session: AsyncSession,
+    payment_for_refund: Payment,
+) -> Refund:
+    """Готовый completed-возврат на 300 ₽."""
+    from datetime import datetime, timezone
+    from decimal import Decimal
+
+    r = Refund(
+        payment_id=payment_for_refund.id,
+        amount=Decimal("300.00"),
+        reason="customer_request",
+        status=RefundStatus.COMPLETED,
+        external_id="test-refund-1",
+        refunded_at=datetime.now(timezone.utc),
+    )
+    db_session.add(r)
+    await db_session.flush()
+    await db_session.refresh(r)
+    return r
