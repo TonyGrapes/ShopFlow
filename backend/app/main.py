@@ -10,6 +10,7 @@ from app import models  # noqa: F401
 from app.api.v1.endpoints import (
     addresses,
     admin_orders,
+    admin_refunds,
     admin_reviews,
     auth,
     cart,
@@ -72,6 +73,7 @@ app.include_router(reviews.router, prefix="/api/v1")
 app.include_router(admin_reviews.router, prefix="/api/v1")
 app.include_router(categories.public_router, prefix="/api/v1")
 app.include_router(categories.admin_router, prefix="/api/v1")
+app.include_router(admin_refunds.router, prefix="/api/v1")
 
 
 @app.get("/")
