@@ -24,6 +24,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.exceptions import ConflictError
 from app.db.enum import OrderStatus
 from app.models.order import Order
 from app.models.order_item import OrderItem
@@ -115,13 +116,7 @@ async def create_review(
         )
     )).scalar_one_or_none()
     if existing is not None:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            detail={
-                "code": "already_reviewed",
-                "message": "You already reviewed this product",
-            },
-        )
+        raise ConflictError("You already reviewed this product", code="already_reviewed")
 
     # 4. Создание
     review = Review(
@@ -138,16 +133,8 @@ async def create_review(
     try:
         await db.flush()
     except IntegrityError as exc:
-        # Гонка: два параллельных POST с одного юзера.
-        await db.rollback()
         if _is_active_review_conflict(exc):
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                detail={
-                    "code": "already_reviewed",
-                    "message": "You already reviewed this product",
-                },
-            ) from exc
+            raise ConflictError("already reviewed", code="already_reviewed") from exc
         logger.exception("Unexpected IntegrityError on create_review")
         raise
 

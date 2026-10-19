@@ -290,25 +290,40 @@ class TestDeleteCategoryEndpoint:
         assert response.status_code == 404
 
     @pytest.mark.asyncio
+    async def test_delete_with_products_409(
+        self, client, db_session, admin_headers, category_grandchild
+    ):
+        """У категории есть товар → 409."""
+        from decimal import Decimal
+
+        from app.models.product import Product
+
+        db_session.add(Product(
+            name="Test Product",
+            description="Test",
+            cost=Decimal("100.00"),
+            category_id=category_grandchild.id,
+        ))
+        await db_session.flush()
+
+        response = await client.delete(
+            f"/api/v1/admin/categories/{category_grandchild.id}",
+            headers=admin_headers,
+        )
+        assert response.status_code == 409
+        assert response.json()["code"] == "category_has_products"  # или has_products
+
+    @pytest.mark.asyncio
     async def test_delete_with_children_409(
-        self, client, admin_headers, category_root
+        self, client, admin_headers, category_root, category_child
     ):
         response = await client.delete(
             f"/api/v1/admin/categories/{category_root.id}",
             headers=admin_headers,
         )
         assert response.status_code == 409
-        assert response.json()["detail"]["code"] == "category_has_children"
-
-    @pytest.mark.asyncio
-    async def test_delete_with_children_409(
-        self, client, admin_headers, category_root, category_child):
-        response = await client.delete(
-            f"/api/v1/admin/categories/{category_root.id}",
-            headers=admin_headers,
-        )
-        assert response.status_code == 409
-        assert response.json()["detail"]["code"] == "category_has_children"
+        assert response.json()["code"] == "category_has_children"
+    
 
     @pytest.mark.asyncio
     async def test_requires_admin(

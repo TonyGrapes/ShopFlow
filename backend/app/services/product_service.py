@@ -10,6 +10,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.exceptions import ConflictError
 from app.db.enum import ProductStatus
 from app.models.category import Category
 from app.models.product import Product
@@ -173,14 +174,9 @@ async def create_product(db: AsyncSession, data: ProductCreate) -> Product:
     try:
         await db.flush()                # ← здесь может вылететь IntegrityError
     except IntegrityError as exc:
-        # ✅ Откатываем транзакцию — иначе сессия в невалидном состоянии
-        await db.rollback()
 
         if _is_active_name_conflict(exc):
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Product with name '{data.name}' already exists",
-            ) from exc
+            raise ConflictError(f"Product with name '{data.name}' already exists", code="name_taken") from exc
 
         # Не unique-violation или другой constraint — не наша ответственность
         logger.exception("Unexpected IntegrityError on create_product")
@@ -218,13 +214,9 @@ async def update_product(
     try:
         await db.flush()
     except IntegrityError as exc:
-        await db.rollback()
         if _is_active_name_conflict(exc):
-            new_name = update_data.get("name", product.name)
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail=f"Product with name '{new_name}' already exists",
-            ) from exc
+            new_name = update_data.name or "existing"
+            raise ConflictError(f"Product with name '{new_name}' already exists", code="name_taken") from exc
         logger.exception("Unexpected IntegrityError on update_product")
         raise
 

@@ -14,16 +14,15 @@
 from decimal import Decimal
 
 import pytest
-from fastapi import HTTPException
-from sqlalchemy import select
-from sqlalchemy_utils import Ltree
-
+from app.core.exceptions import ConflictError
 from app.models.category import Category
 from app.models.product import Product
 from app.schemas.category import CategoryCreate, CategoryUpdate
 from app.services import category_service
 from app.services.category_service import _slugify
-
+from fastapi import HTTPException
+from sqlalchemy import select
+from sqlalchemy_utils import Ltree
 
 # ============================================================
 #  _slugify
@@ -135,14 +134,15 @@ class TestCreateCategory:
             db_session,
             CategoryCreate(category_name="Laptops", parent_id=category_root.id),
         )
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ConflictError) as exc:
             await category_service.create_category(
                 db_session,
                 CategoryCreate(category_name="Laptops", parent_id=category_root.id),
             )
         assert exc.value.status_code == 409
-        assert exc.value.detail["code"] == "category_name_taken"
-
+        assert exc.value.code == "category_name_taken"
+        assert "category name taken" in exc.value.message.lower()
+        
     @pytest.mark.asyncio
     async def test_same_name_different_parents_ok(
         self, db_session, category_root: Category
@@ -390,14 +390,14 @@ class TestMoveCategory:
             CategoryCreate(category_name="Laptops", parent_id=furniture.id),
         )
 
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ConflictError) as exc:
             await category_service.update_category(
                 db_session,
                 category_child.id,
                 CategoryUpdate(parent_id=furniture.id),
             )
         assert exc.value.status_code == 409
-        assert exc.value.detail["code"] == "path_conflict"
+        assert exc.value.code == "path_conflict"
 
 
 # ============================================================
@@ -430,10 +430,10 @@ class TestDeleteCategory:
     async def test_delete_with_children_409(
     self, db_session, category_root, category_child):
         """У root есть child → 409."""
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ConflictError) as exc:
             await category_service.delete_category(db_session, category_root.id)
         assert exc.value.status_code == 409
-        assert exc.value.detail["code"] == "category_has_children"
+        assert exc.value.code == "category_has_children"
 
     @pytest.mark.asyncio
     async def test_delete_with_products_409(
@@ -448,12 +448,12 @@ class TestDeleteCategory:
         ))
         await db_session.flush()
 
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ConflictError) as exc:
             await category_service.delete_category(
                 db_session, category_grandchild.id
             )
         assert exc.value.status_code == 409
-        assert exc.value.detail["code"] == "category_has_products"
+        assert exc.value.code == "category_has_products"
 
     @pytest.mark.asyncio
     async def test_delete_with_soft_deleted_product_409(
@@ -474,9 +474,9 @@ class TestDeleteCategory:
         db_session.add(product)
         await db_session.flush()
 
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ConflictError) as exc:
             await category_service.delete_category(
                 db_session, category_grandchild.id
             )
         assert exc.value.status_code == 409
-        assert exc.value.detail["code"] == "category_has_products"
+        assert exc.value.code == "category_has_products"

@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
+from app.core.exceptions import ConflictError
 from app.db.enum import OrderStatus
 from app.models.order import Order
 from app.models.order_item import OrderItem
@@ -173,10 +174,10 @@ class TestCreateReview:
     ):
         """Активный отзыв уже есть → 409."""
         data = ReviewCreate(product_id=product.id, rating=3)
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ConflictError) as exc:
             await review_service.create_review(db_session, verified_user, data)
         assert exc.value.status_code == 409
-        assert exc.value.detail["code"] == "already_reviewed"
+        assert exc.value.code == "already_reviewed"
 
     @pytest.mark.asyncio
     async def test_review_after_soft_delete_allowed(

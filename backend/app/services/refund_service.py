@@ -24,6 +24,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import ConflictError
 from app.db.enum import PaymentStatus, RefundStatus
 from app.models.payment import Payment
 from app.models.refund import Refund
@@ -118,14 +119,7 @@ async def create_refund(
                     data.external_id, payment.public_id, existing.public_id,
                 )
                 return existing
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                detail={
-                    "code": "external_id_taken",
-                    "external_id": data.external_id,
-                    "message": "external_id already used by another refund",
-                },
-            )
+            raise ConflictError("external_id already used by another refund", code="external_id_taken", extra={"external_id": data.external_id})
 
     # 2. Платёж должен быть completed
     if payment.status != PaymentStatus.COMPLETED:
@@ -181,20 +175,13 @@ async def create_refund(
         await db.flush()
     except IntegrityError as exc:
         if _is_external_id_conflict(exc):
-            await db.rollback()
             if data.external_id is not None:
                 existing = (await db.execute(
                     select(Refund).where(Refund.external_id == data.external_id)
                 )).scalar_one_or_none()
                 if existing is not None and existing.payment_id == payment.id:
                     return existing
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                detail={
-                    "code": "external_id_taken",
-                    "external_id": data.external_id,
-                },
-            ) from exc
+            raise ConflictError("external_id already used", code="external_id_taken") from exc
         logger.exception("Unexpected IntegrityError on create_refund")
         raise
 

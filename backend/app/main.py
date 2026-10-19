@@ -2,8 +2,9 @@
 import logging
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, Response, status
+from fastapi import FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 
 from app import models  # noqa: F401
@@ -21,6 +22,7 @@ from app.api.v1.endpoints import (
     reviews,
 )
 from app.core.config import get_settings
+from app.core.exceptions import AppError
 from app.core.redis import close_redis, get_redis
 
 settings = get_settings()
@@ -61,6 +63,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.exception_handler(AppError)
+async def app_error_handler(request: Request, exc: AppError):
+    """
+    Единый формат доменных ошибок.
+
+    Формат: {"detail": "<строка>", "code": "<машинный код>"}
+    Совместим с frontend/src/api/client.ts (читает body.detail как строку).
+    """
+    body = {"detail": exc.message, "code": exc.code}
+    if exc.extra:
+        body.update(exc.extra)
+    return JSONResponse(status_code=exc.status_code, content=body)
 
 app.include_router(products.router, prefix="/api/v1")
 app.include_router(auth.router, prefix="/api/v1")

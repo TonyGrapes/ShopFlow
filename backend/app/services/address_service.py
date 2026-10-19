@@ -24,6 +24,7 @@ from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import ConflictError
 from app.models.address import Address
 from app.schemas.address import AddressCreate, AddressUpdate
 
@@ -103,11 +104,7 @@ async def create_address(
         await db.flush()
     except IntegrityError as exc:
         if _is_default_conflict(exc):
-            await db.rollback()
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                "Another default address already exists for this user",
-            ) from exc
+            raise ConflictError("default address conflict", code="default_conflict") from exc
         logger.exception("Unexpected IntegrityError on create_address")
         raise
 
@@ -140,11 +137,7 @@ async def update_address(
         await db.flush()
     except IntegrityError as exc:
         if _is_default_conflict(exc):
-            await db.rollback()
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                "Another default address already exists for this user",
-            ) from exc
+            raise ConflictError("default address conflict", code="default_conflict") from exc
         logger.exception("Unexpected IntegrityError on update_address")
         raise
 
@@ -187,11 +180,7 @@ async def set_default(
         await db.flush()
     except IntegrityError as exc:
         if _is_default_conflict(exc):
-            await db.rollback()
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                "Another default address already exists for this user",
-            ) from exc
+            raise ConflictError("default address conflict", code="default_conflict") from exc
         logger.exception("Unexpected IntegrityError on set_default")
         raise
 

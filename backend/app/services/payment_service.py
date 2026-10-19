@@ -25,6 +25,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import ConflictError
 from app.db.enum import OrderStatus, PaymentMethod, PaymentStatus
 from app.models.order import Order
 from app.models.payment import Payment
@@ -66,14 +67,7 @@ async def process_payment(
                     external_id, order.public_id, existing.public_id,
                 )
                 return existing
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                detail={
-                    "code": "external_id_taken",
-                    "external_id": external_id,
-                    "message": "external_id already used by another order",
-                },
-            )
+            raise ConflictError("external_id already used by another order", code="external_id_taken", extra={"external_id": external_id})
 
     # ============================================================
     #  3-4. Проверки статуса заказа
@@ -118,24 +112,15 @@ async def process_payment(
         await db.flush()
     except IntegrityError as exc:
         if _is_external_id_conflict(exc):
-            # Гонка: между нашим SELECT и INSERT кто-то вставил тот же external_id.
-            # Откатываемся, повторно ищем — детерминированно возвращаем
-            # существующий payment или 409.
-            await db.rollback()
             if external_id is not None:
                 existing = (await db.execute(
                     select(Payment).where(Payment.external_id == external_id)
                 )).scalar_one_or_none()
                 if existing is not None and existing.order_id == order.id:
                     return existing
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                detail={
-                    "code": "external_id_taken",
-                    "external_id": external_id,
-                    "message": "external_id already used by another order",
-                },
-            ) from exc
+            raise ConflictError(
+                "external_id already used",
+                code="external_id_taken") from exc
         logger.exception("Unexpected IntegrityError on process_payment")
         raise
 

@@ -21,6 +21,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import ConflictError
 from app.models.category import Category
 from app.models.product import Product
 from app.schemas.category import CategoryCreate, CategoryUpdate
@@ -103,15 +104,8 @@ async def create_category(
     try:
         await db.flush()
     except IntegrityError as exc:
-        await db.rollback()
         if _is_path_conflict(exc):
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                detail={
-                    "code": "category_name_taken",
-                    "message": "Category with this name already exists under the same parent",
-                },
-            ) from exc
+            raise ConflictError("category name taken under parent", code="category_name_taken") from exc
         logger.exception("Unexpected IntegrityError on create_category")
         raise
 
@@ -282,15 +276,8 @@ async def _move_category(
         category.path = new_path
         await db.flush()
     except IntegrityError as exc:
-        await db.rollback()
         if _is_path_conflict(exc):
-            raise HTTPException(
-                status.HTTP_409_CONFLICT,
-                detail={
-                    "code": "path_conflict",
-                    "message": "Target path already exists (conflict with another category)",
-                },
-            ) from exc
+            raise ConflictError("target path already exists", code="path_conflict") from exc
         raise
 
 
@@ -316,13 +303,7 @@ async def delete_category(db: AsyncSession, category_id: int) -> bool:
         )
     )).scalar_one()
     if has_children > 0:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            detail={
-                "code": "category_has_children",
-                "message": "Cannot delete category with subcategories",
-            },
-        )
+        raise ConflictError("Cannot delete category with subcategories", code="category_has_children")
 
     # Товары (включая soft-deleted — FK RESTRICT не даст удалить)
     has_products = (await db.execute(
@@ -331,13 +312,7 @@ async def delete_category(db: AsyncSession, category_id: int) -> bool:
         )
     )).scalar_one()
     if has_products > 0:
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            detail={
-                "code": "category_has_products",
-                "message": "Cannot delete category with products",
-            },
-        )
+        raise ConflictError("Cannot delete category with products", code="category_has_products")
 
     await db.delete(category)
     await db.flush()
