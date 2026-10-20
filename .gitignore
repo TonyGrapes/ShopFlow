@@ -7,7 +7,7 @@ Response.txt
 Request.txt
 shopflow-repomix.txt
 **repomix**
-**test-data**
+test_data/
 
 # Python
 __pycache__/
@@ -23,6 +23,7 @@ npm-debug.log*
 yarn-error.log*
 dist/
 build/
+prototypes/
 
 # IDE
 .vscode/
