@@ -21,6 +21,7 @@ from app.services import refund_service
 from app.services.refund_service import validate_refund_transition
 from fastapi import HTTPException
 from sqlalchemy import select
+from app.core.exceptions import ConflictError
 
 # ============================================================
 #  create_refund — happy path
@@ -141,9 +142,9 @@ class TestCreateRefundValidation:
         self, db_session, payment_for_refund, admin_user, address, product
     ):
         """external_id занят другим платежом → 409."""
+        from app.db.enum import OrderStatus
         from app.models.order import Order
         from app.models.order_item import OrderItem
-        from app.db.enum import OrderStatus
 
         # Второй заказ + платёж
         o2 = Order(
@@ -176,13 +177,13 @@ class TestCreateRefundValidation:
         )
 
         # Возврат на второй с тем же external_id → 409
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ConflictError) as exc:
             await refund_service.create_refund(
                 db_session, p2,
                 RefundCreate(amount=Decimal("100.00"), external_id="shared-ext"),
             )
         assert exc.value.status_code == 409
-        assert exc.value.detail["code"] == "external_id_taken"
+        assert exc.value.code == "external_id_taken"
 
     @pytest.mark.asyncio
     async def test_payment_not_completed_422(

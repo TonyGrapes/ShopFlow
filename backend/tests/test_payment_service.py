@@ -5,12 +5,12 @@
 from decimal import Decimal
 
 import pytest
-from fastapi import HTTPException
-from sqlalchemy import select
-
+from app.core.exceptions import ConflictError
 from app.db.enum import OrderStatus, PaymentMethod, PaymentStatus
 from app.models.payment import Payment
-from app.services import payment_service, order_service
+from app.services import order_service, payment_service
+from fastapi import HTTPException
+from sqlalchemy import select
 
 
 class TestProcessPaymentHappy:
@@ -83,13 +83,13 @@ class TestProcessPaymentIdempotency:
         )
 
         # Платим второй заказ с тем же external_id → 409
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ConflictError) as exc:
             await payment_service.process_payment(
                 db=db_session, order=other_order,
                 external_id="ext-shared", method=PaymentMethod.CARD,
             )
         assert exc.value.status_code == 409
-        assert exc.value.detail["code"] == "external_id_taken"
+        assert exc.value.code == "external_id_taken"
 
 
 class TestProcessPaymentStateChecks:

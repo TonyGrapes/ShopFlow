@@ -170,7 +170,7 @@ class TestCreateReviewEndpoint:
             headers=auth_headers,
         )
         assert response.status_code == 409
-        assert response.json()["detail"]["code"] == "already_reviewed"
+        assert response.json()["code"] == "already_reviewed"
 
     @pytest.mark.asyncio
     async def test_create_invalid_rating_422(
