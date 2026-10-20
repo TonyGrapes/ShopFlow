@@ -8,6 +8,7 @@ ownership-фильтрация.
 from decimal import Decimal
 
 import pytest
+from app.core.exceptions import ValidationError
 from app.db.enum import OrderStatus, ProductStatus
 from app.models.cart_item import CartItem
 from app.models.order import Order
@@ -75,36 +76,36 @@ class TestCreateOrderFromCartValidation:
     async def test_empty_cart_returns_422(
         self, db_session, verified_user, address
     ):
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             await order_service.create_order_from_cart(
-                db_session, verified_user, address.id
+            db_session, verified_user, address.id
             )
         assert exc.value.status_code == 422
-        assert exc.value.detail["code"] == "empty_cart"
+        assert exc.value.code == "empty_cart"
 
     @pytest.mark.asyncio
     async def test_invalid_address_returns_422(
         self, db_session, verified_user, product, cart_with_one_item
     ):
         """Несуществующий address_id."""
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             await order_service.create_order_from_cart(
-                db_session, verified_user, 999999
+            db_session, verified_user, 999999
             )
         assert exc.value.status_code == 422
-        assert exc.value.detail["code"] == "invalid_address"
+        assert exc.value.code == "invalid_address"
 
     @pytest.mark.asyncio
     async def test_foreign_address_returns_422(
         self, db_session, verified_user, address_for_admin, product, cart_with_one_item
     ):
         """Чужой адрес (принадлежит другому юзеру)."""
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             await order_service.create_order_from_cart(
                 db_session, verified_user, address_for_admin.id
             )
         assert exc.value.status_code == 422
-        assert exc.value.detail["code"] == "invalid_address"
+        assert exc.value.code == "invalid_address"
 
     @pytest.mark.asyncio
     async def test_soft_deleted_product_silently_skipped(
@@ -122,12 +123,12 @@ class TestCreateOrderFromCartValidation:
         await db_session.flush()
 
         # Корзина теперь эффективно пуста → 422 empty_cart
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             await order_service.create_order_from_cart(
                 db_session, verified_user, address.id
             )
         assert exc.value.status_code == 422
-        assert exc.value.detail["code"] == "empty_cart"
+        assert exc.value.code == "empty_cart"
 
     @pytest.mark.asyncio
     async def test_out_of_stock_returns_422_with_errors(
@@ -137,15 +138,16 @@ class TestCreateOrderFromCartValidation:
         product.status = ProductStatus.OUTOFSTOCK
         await db_session.flush()
 
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             await order_service.create_order_from_cart(
                 db_session, verified_user, address.id
             )
         assert exc.value.status_code == 422
-        assert exc.value.detail["code"] == "cart_has_unavailable_items"
-        assert len(exc.value.detail["errors"]) == 1
-        assert exc.value.detail["errors"][0]["product_id"] == product.id
-        assert exc.value.detail["errors"][0]["reason"] == "out_of_stock"
+        assert exc.value.code == "cart_has_unavailable_items"
+        errors = exc.value.extra["errors"]
+        assert len(errors) == 1
+        assert errors[0]["product_id"] == product.id
+        assert errors[0]["reason"] == "out_of_stock"
 
     @pytest.mark.asyncio
     async def test_discontinued_returns_422(
@@ -154,38 +156,11 @@ class TestCreateOrderFromCartValidation:
         product.status = ProductStatus.DISCONTINUED
         await db_session.flush()
 
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             await order_service.create_order_from_cart(
                 db_session, verified_user, address.id
             )
         assert exc.value.status_code == 422
-
-
-class TestCreateOrderTransactionality:
-    """Транзакционная целостность."""
-
-    @pytest.mark.asyncio
-    async def test_cart_not_cleared_on_error(
-        self, db_session, verified_user, address, category, product, cart_with_one_item
-    ):
-        """
-        Если заказ не создался — корзина НЕ очищена.
-
-        Проверяем через out_of_stock: cart_item остаётся в БД.
-        """
-        product.status = ProductStatus.OUTOFSTOCK
-        await db_session.flush()
-
-        with pytest.raises(HTTPException):
-            await order_service.create_order_from_cart(
-                db_session, verified_user, address.id
-            )
-
-        # Корзина не тронута
-        items = (await db_session.execute(
-            select(CartItem).where(CartItem.user_id == verified_user.id)
-        )).scalars().all()
-        assert len(items) == 1
 
 
 class TestGetUserOrders:

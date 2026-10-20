@@ -64,7 +64,7 @@ class TestCreateOrderEndpoint:
             headers=auth_headers,
         )
         assert response.status_code == 422
-        assert response.json()["detail"]["code"] == "empty_cart"
+        assert response.json()["code"] == "empty_cart"
 
     @pytest.mark.asyncio
     async def test_create_order_invalid_address_422(
@@ -76,7 +76,7 @@ class TestCreateOrderEndpoint:
             headers=auth_headers,
         )
         assert response.status_code == 422
-        assert response.json()["detail"]["code"] == "invalid_address"
+        assert response.json()["code"] == "invalid_address"
 
     @pytest.mark.asyncio
     async def test_create_order_foreign_address_422(
@@ -88,7 +88,7 @@ class TestCreateOrderEndpoint:
             headers=auth_headers,
         )
         assert response.status_code == 422
-        assert response.json()["detail"]["code"] == "invalid_address"
+        assert response.json()["code"] == "invalid_address"
 
     @pytest.mark.asyncio
     async def test_create_order_out_of_stock_422(
@@ -104,8 +104,8 @@ class TestCreateOrderEndpoint:
         )
         assert response.status_code == 422
         body = response.json()
-        assert body["detail"]["code"] == "cart_has_unavailable_items"
-        assert len(body["detail"]["errors"]) == 1
+        assert body["code"] == "cart_has_unavailable_items"
+        assert len(body["errors"]) == 1
 
     @pytest.mark.asyncio
     async def test_create_order_clears_cart(

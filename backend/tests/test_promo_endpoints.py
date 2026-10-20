@@ -306,7 +306,9 @@ class TestCreateOrderWithPromo:
             headers=auth_headers,
         )
         assert response.status_code == 422
-        assert response.json()["detail"]["reason"] == "max_uses_exceeded"
+        body = response.json()
+        assert body["code"] == "invalid_promo"
+        assert body["reason"] == "max_uses_exceeded"
 
     @pytest.mark.asyncio
     async def test_order_promo_reserved_but_cart_error_rolls_back(

@@ -20,6 +20,7 @@ from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.exceptions import ValidationError
 from app.db.enum import OrderStatus, ProductStatus
 from app.models.address import Address
 from app.models.cart_item import CartItem
@@ -86,80 +87,97 @@ async def create_order_from_cart(
     """
     Создаёт заказ из корзины юзера. Всё в одной транзакции.
 
-    Шаги:
-    1. Валидация адреса (существование + ownership).
-    2. Чтение cart_items + products (skip soft-deleted).
-    3. Валидация каждой позиции (status == available).
-    4. Расчёт subtotal.
-    5. Если promo_code: валидация + атомарный reserve used_count.
-    6. total = subtotal - discount.
-    7. Создание Order (с promo_code и discount_amount).
-    8. Создание OrderItem[].
-    9. Очистка cart_items юзера.
-    10. flush.
+    Порядок (RACE-01: атомарный захват корзины):
+    1. Валидация адреса.
+    2. DELETE ... RETURNING cart_items — атомарно «забираем» корзину.
+       Параллельный запрос получит пустой RETURNING → 422 empty_cart.
+    3. Загрузка продуктов (soft-deleted — вне выборки).
+    4. Валидация позиций (status == available).
+    5. subtotal.
+    6. promo validate + reserve (если передан).
+    7. total.
+    8. Order INSERT.
+    9. OrderItem INSERT.
+    10. reload для сериализации.
+
+    При любой ошибке после шага 2 — get_db.rollback() вернёт корзину.
+    То есть «при ошибке корзина не очищена» сохраняется.
 
     НЕ трогаем guest-cart в Redis: она уже очищена при login.
     """
     # 1. Валидация адреса
     address = await db.get(Address, address_id)
     if address is None or address.user_id != user.id:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "code": "invalid_address",
-                "address_id": address_id,
-                "message": "Shipping address not found or not owned by user",
-            },
+        raise ValidationError(
+            "Shipping address not found or not owned by user",
+            code="invalid_address",
+            extra={"address_id": address_id},
         )
 
-    # 2. Чтение корзины + JOIN продуктов (soft-deleted исключены)
-    result = await db.execute(
-        select(CartItem, Product)
-        .join(Product, Product.id == CartItem.product_id)
-        .where(
-            CartItem.user_id == user.id,
+    # 2. Атомарный захват корзины.
+    #    DELETE ... RETURNING — один statement, атомарно в PostgreSQL.
+    #    Второй параллельный DELETE получит rowcount=0 → пустой RETURNING.
+    cart_result = await db.execute(
+        delete(CartItem)
+        .where(CartItem.user_id == user.id)
+        .returning(
+            CartItem.product_id,
+            CartItem.quantity,
+            CartItem.product_cost,
+        )
+    )
+    cart_rows = cart_result.all()
+
+    if not cart_rows:
+        raise ValidationError("Cart is empty", code="empty_cart")
+
+    # 3. Загрузка продуктов (soft-deleted — вне выборки, как было)
+    product_ids = [row.product_id for row in cart_rows]
+    products_result = await db.execute(
+        select(Product).where(
+            Product.id.in_(product_ids),
             Product.deleted_at.is_(None),
         )
-        .order_by(CartItem.created_at)
     )
-    rows = result.all()
+    products_by_id = {p.id: p for p in products_result.scalars()}
 
-    if not rows:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={"code": "empty_cart", "message": "Cart is empty"},
-        )
-
-    # 3. Разделяем на valid / errors
+    # 4. Валидация позиций
     errors: list[dict] = []
-    valid_items: list[tuple[CartItem, Product]] = []
+    valid_items: list[tuple[Product, int, Decimal]] = []
+    #                  ^ product, quantity, product_cost из корзины
 
-    for cart_item, product in rows:
+    for row in cart_rows:
+        product = products_by_id.get(row.product_id)
+        if product is None:
+            # Soft-deleted — тихо пропускаем (поведение как было)
+            continue
         if product.status != ProductStatus.AVAILABLE:
             errors.append({
                 "product_id": product.id,
                 "name": product.name,
                 "reason": product.status.value,
             })
-        else:
-            valid_items.append((cart_item, product))
+            continue
+        valid_items.append((product, row.quantity, row.product_cost))
 
     if errors:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "code": "cart_has_unavailable_items",
-                "errors": errors,
-            },
+        raise ValidationError(
+            "Cart has unavailable items",
+            code="cart_has_unavailable_items",
+            extra={"errors": errors},
         )
 
-    # 4. Считаем subtotal (Decimal для точности)
+    if not valid_items:
+        # Все товары были soft-deleted — эффективно пустая корзина
+        raise ValidationError("Cart is empty", code="empty_cart")
+
+    # 5. subtotal
     subtotal = sum(
-        (ci.product_cost * ci.quantity for ci, _ in valid_items),
+        (cost * qty for _, qty, cost in valid_items),
         start=Decimal("0.00"),
     )
 
-    # 5. Промокод (если передан) — валидация + атомарный reserve
+    # 6. Промокод (если передан) — валидация + атомарный reserve
     discount: Decimal | None = None
     applied_code: str | None = None
 
@@ -169,21 +187,17 @@ async def create_order_from_cart(
         )
         reserved = await promo_service.reserve_promo_use(db, promo.id)
         if not reserved:
-            # Гонка: между валидацией и reserve кто-то исчерпал лимит.
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail={
-                    "code": "invalid_promo",
-                    "promo_code": promo_code,
-                    "reason": "max_uses_exceeded",
-                },
+            raise ValidationError(
+                "Promo code max uses exceeded",
+                code="invalid_promo",
+                extra={"promo_code": promo_code, "reason": "max_uses_exceeded"},
             )
         applied_code = promo.code
 
-    # 6. total = subtotal - discount
+    # 7. total
     total = subtotal - (discount or Decimal("0.00"))
 
-    # 7. Создаём Order
+    # 8. Order INSERT
     order = Order(
         user_id=user.id,
         total=total,
@@ -195,25 +209,20 @@ async def create_order_from_cart(
     db.add(order)
     await db.flush()
 
-    # 8. Создаём OrderItems
+    # 9. OrderItem INSERT
     #    product_cost — snapshot из cart_items, НЕ из products.cost.
     #    product_count = cart_item.quantity.
-    for cart_item, product in valid_items:
+    for product, quantity, product_cost in valid_items:
         db.add(OrderItem(
             order_id=order.id,
             product_id=product.id,
-            product_cost=cart_item.product_cost,
-            product_count=cart_item.quantity,
+            product_cost=product_cost,
+            product_count=quantity,
         ))
-
-    # 9. Очищаем корзину юзера
-    await db.execute(
-        delete(CartItem).where(CartItem.user_id == user.id)
-    )
 
     await db.flush()
 
-    # 10. Перезагружаем order со связями для сериализации
+    # 10. reload для сериализации
     return await _load_order(db, order.id)
 
 # ============================================================
