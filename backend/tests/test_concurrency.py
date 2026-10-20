@@ -20,6 +20,7 @@ from app.models.address import Address
 from app.models.cart_item import CartItem
 from app.models.category import Category
 from app.models.order import Order
+from app.models.order_item import OrderItem
 from app.models.product import Product
 from app.models.user import User as UserModel
 from sqlalchemy import select, text
@@ -160,3 +161,93 @@ async def test_concurrent_order_creation_one_wins(race_factory):
             select(CartItem).where(CartItem.user_id == user_id)
         )).scalars().all()
         assert cart_items == [], f"Expected empty cart, got {len(cart_items)}"
+
+@pytest.mark.integration
+@pytest.mark.asyncio
+async def test_concurrent_payment_one_wins(race_factory):
+    """
+    ✅ RACE-02: два параллельных process_payment на один order
+    с разными external_id.
+
+    Ожидание:
+    - Один создаёт Payment, order → PAID.
+    - Второй получает ConflictError(order_not_payable).
+    - В БД ровно 1 Payment.
+    """
+    from app.core.exceptions import ConflictError
+    from app.db.enum import PaymentMethod
+    from app.models.payment import Payment
+    from app.services.payment_service import process_payment
+
+    # setup
+    async with race_factory() as setup:
+        cat = Category(path="electronics", category_name="Electronics")
+        setup.add(cat)
+        await setup.flush()
+
+        product = Product(
+            name="Laptop", description="Test",
+            cost=Decimal("1000.00"), category_id=cat.id,
+            status=ProductStatus.AVAILABLE,
+        )
+        setup.add(product)
+        await setup.flush()
+
+        user = UserModel(
+            email="race-pay@example.com",
+            password_hash=hash_password("race-pass-1234"),
+            first_name="Race", last_name="Pay", phone_number="+79990000002",
+            role=UserRole.CUSTOMER, status=UserStatus.ACTIVE, is_email_verified=True,
+        )
+        setup.add(user)
+        await setup.flush()
+
+        addr = Address(
+            user_id=user.id, address_line1="X", city="Y",
+            postal_code="Z", country="RU", is_default=True,
+        )
+        setup.add(addr)
+        await setup.flush()
+
+        order = Order(
+            user_id=user.id, total=Decimal("1000.00"),
+            status=OrderStatus.PENDING, shipping_address_id=addr.id,
+        )
+        setup.add(order)
+        await setup.flush()
+
+        setup.add(OrderItem(
+            order_id=order.id, product_id=product.id,
+            product_cost=Decimal("1000.00"), product_count=1,
+        ))
+        await setup.flush()
+        await setup.commit()
+        order_id = order.id
+
+    async def _pay(ext_id):
+        async with race_factory() as session:
+            order_obj = await session.get(Order, order_id)
+            try:
+                payment = await process_payment(
+                    session, order_obj, ext_id, PaymentMethod.CARD,
+                )
+                await session.commit()
+                return ("success", payment.id)
+            except ConflictError as e:
+                await session.rollback()
+                return ("conflict", e.code)
+
+    r1, r2 = await asyncio.gather(_pay("ext-A"), _pay("ext-B"))
+
+    statuses = sorted([r1[0], r2[0]])
+    assert statuses == ["conflict", "success"], f"Expected one each, got {r1}, {r2}"
+
+    async with race_factory() as check:
+        payments = (await check.execute(
+            select(Payment).where(Payment.order_id == order_id)
+        )).scalars().all()
+        assert len(payments) == 1, f"Expected 1 payment, got {len(payments)}"
+
+        order_obj = await check.get(Order, order_id)
+        await check.refresh(order_obj)
+        assert order_obj.status == OrderStatus.PAID

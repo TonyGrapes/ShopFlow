@@ -5,7 +5,7 @@
 from decimal import Decimal
 
 import pytest
-from app.core.exceptions import ConflictError
+from app.core.exceptions import ConflictError, ValidationError
 from app.db.enum import OrderStatus, PaymentMethod, PaymentStatus
 from app.models.payment import Payment
 from app.services import order_service, payment_service
@@ -100,26 +100,26 @@ class TestProcessPaymentStateChecks:
         order.status = OrderStatus.CANCELED
         await db_session.flush()
 
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             await payment_service.process_payment(
                 db=db_session, order=order,
                 external_id="ext-canceled", method=PaymentMethod.CARD,
             )
         assert exc.value.status_code == 422
-        assert exc.value.detail["code"] == "order_canceled"
+        assert exc.value.code == "order_canceled"
 
     @pytest.mark.asyncio
     async def test_delivered_order_422(self, db_session, order):
         order.status = OrderStatus.DELIVERED
         await db_session.flush()
 
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             await payment_service.process_payment(
                 db=db_session, order=order,
                 external_id="ext-delivered", method=PaymentMethod.CARD,
             )
         assert exc.value.status_code == 422
-        assert exc.value.detail["code"] == "order_not_payable"
+        assert exc.value.code == "order_not_payable"
 
     @pytest.mark.asyncio
     async def test_no_external_id_creates_new_payment(

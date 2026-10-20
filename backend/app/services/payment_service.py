@@ -21,11 +21,11 @@ import logging
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError
+from app.core.exceptions import ConflictError, ValidationError
 from app.db.enum import OrderStatus, PaymentMethod, PaymentStatus
 from app.models.order import Order
 from app.models.payment import Payment
@@ -44,16 +44,21 @@ async def process_payment(
     """
     Обрабатывает платёж. Идемпотентно по external_id.
 
-    Порядок проверок:
+    Порядок:
     1. external_id уже привязан к ЭТОМУ order → 200 replay.
     2. external_id привязан к ДРУГОМУ order → 409.
     3. order canceled → 422.
     4. order не в pending → 422.
-    5. Иначе — создать Payment.
+    5. Атомарный UPDATE order.status=PAID WHERE status=PENDING RETURNING.
+       Параллельный запрос получит пустой RETURNING → 409.
+    6. Payment INSERT.
+    7. flush.
+    8. refresh(order).
+
+    RACE-02: атомарный UPDATE до INSERT гарантирует, что только один
+    параллельный запрос создаст Payment. Второй получит ConflictError.
     """
-    # ============================================================
-    #  1-2. Idempotency по external_id — приоритетнее статуса
-    # ============================================================
+    # 1-2. Idempotency по external_id
     if external_id is not None:
         existing = (await db.execute(
             select(Payment).where(Payment.external_id == external_id)
@@ -61,41 +66,49 @@ async def process_payment(
 
         if existing is not None:
             if existing.order_id == order.id:
-                # ✅ Replay webhook'а → возвращаем существующий
                 logger.info(
                     "Idempotent replay: external_id=%s order=%s payment=%s",
                     external_id, order.public_id, existing.public_id,
                 )
                 return existing
-            raise ConflictError("external_id already used by another order", code="external_id_taken", extra={"external_id": external_id})
+            raise ConflictError(
+                "external_id already used by another order",
+                code="external_id_taken",
+                extra={"external_id": external_id},
+            )
 
-    # ============================================================
-    #  3-4. Проверки статуса заказа
-    # ============================================================
+    # 3-4. Проверки статуса заказа
     if order.status == OrderStatus.CANCELED:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "code": "order_canceled",
-                "message": "Cannot pay for a canceled order",
-            },
+        raise ValidationError(
+            "Cannot pay for a canceled order",
+            code="order_canceled",
         )
 
     if order.status != OrderStatus.PENDING:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "code": "order_not_payable",
-                "status": order.status.value,
-                "message": f"Order in status '{order.status.value}' cannot be paid",
-            },
+        raise ValidationError(
+            f"Order in status '{order.status.value}' cannot be paid",
+            code="order_not_payable",
+            extra={"status": order.status.value},
         )
 
-    # ============================================================
-    #  5. Создание Payment
-    # ============================================================
-    # Mock: сразу completed. Реальная интеграция:
-    # status=PENDING → шлюз шлёт webhook → handle_webhook переводит в COMPLETED.
+    # 5. Атомарный захват заказа.
+    update_result = await db.execute(
+        update(Order)
+        .where(
+            Order.id == order.id,
+            Order.status == OrderStatus.PENDING,
+        )
+        .values(status=OrderStatus.PAID)
+        .returning(Order.id)
+    )
+    if update_result.first() is None:
+        raise ConflictError(
+            "Order is not pending",
+            code="order_not_payable",
+            extra={"status": order.status.value},
+        )
+
+    # 6. Payment INSERT
     now = datetime.now(timezone.utc)
     payment = Payment(
         order_id=order.id,
@@ -120,21 +133,19 @@ async def process_payment(
                     return existing
             raise ConflictError(
                 "external_id already used",
-                code="external_id_taken") from exc
+                code="external_id_taken",
+                extra={"external_id": external_id},
+            ) from exc
         logger.exception("Unexpected IntegrityError on process_payment")
         raise
 
-    # ============================================================
-    #  6. Обновляем статус заказа
-    # ============================================================
-    order.status = OrderStatus.PAID
-    await db.flush()
+    # 7. Refresh order — статус изменён через UPDATE, не через ORM
+    await db.refresh(order)
 
     logger.info(
         "Payment processed: order=%s payment=%s external_id=%s",
         order.public_id, payment.public_id, external_id,
     )
-
     return payment
 
 

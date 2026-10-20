@@ -321,7 +321,7 @@ class TestPayOrderEndpoint:
             headers=auth_headers,
         )
         assert response.status_code == 422
-        assert response.json()["detail"]["code"] == "order_canceled"
+        assert response.json()["code"] == "order_canceled"
 
     @pytest.mark.asyncio
     async def test_pay_foreign_order_404(
