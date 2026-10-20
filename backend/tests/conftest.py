@@ -326,30 +326,6 @@ def mock_cache():
 
     return cache
 
-
-@pytest_asyncio.fixture
-async def client(db_session, mock_storage, mock_cache):
-    """HTTP-клиент с override get_db, get_storage, get_cache_service."""
-
-    async def override_get_db():
-        yield db_session
-
-    def override_get_storage():
-        return mock_storage
-
-    def override_get_cache_service():
-        return mock_cache
-
-    app.dependency_overrides[get_db] = override_get_db
-    app.dependency_overrides[get_storage] = override_get_storage
-    app.dependency_overrides[get_cache_service] = override_get_cache_service
-
-    transport = ASGITransport(app=app)
-    async with AsyncClient(transport=transport, base_url="http://test") as tc:
-        yield tc
-
-    app.dependency_overrides.clear()
-
 @pytest_asyncio.fixture(autouse=True)
 async def _dispose_cached_engine_after_test():
     """
