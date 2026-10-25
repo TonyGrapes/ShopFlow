@@ -74,20 +74,25 @@ def _calculate_discount(promo: PromoCode, subtotal: Decimal) -> Decimal:
     Считает скидку.
 
     - percentage:    subtotal * value / 100, ROUND_HALF_UP, 2 знака.
-    - fixed:         min(value, subtotal) — скидка не может превысить сумму.
-    - free_shipping: 0.00 (стоимость доставки у нас не считается).
+                     Клампится до subtotal — скидка не может превысить сумму.
+    - fixed:         min(value, subtotal).
+    - free_shipping: 0.00.
+
+    Кламп защищает от:
+    - discount_value > 100% (ошибочный промокод) → total < 0 → 500 на response.
+    - subtotal = 0 (пустая корзина) → 0.00.
     """
     if promo.discount_type == DiscountType.PERCENTAGE:
-        return (subtotal * promo.discount_value / Decimal("100")).quantize(
+        raw = (subtotal * promo.discount_value / Decimal("100")).quantize(
             Decimal("0.01"), rounding=ROUND_HALF_UP
         )
+        return min(raw, subtotal)
 
     if promo.discount_type == DiscountType.FIXED:
         return min(promo.discount_value, subtotal).quantize(Decimal("0.01"))
 
     # FREE_SHIPPING
     return Decimal("0.00")
-
 
 # ============================================================
 #  Атомарный резерв использования

@@ -273,3 +273,19 @@ class TestReservePromoUse:
         assert await reserve_promo_use(db_session, p.id) is False
         await db_session.refresh(p)
         assert p.used_count == 1   # не инкрементировался
+
+    def test_percentage_capped_at_subtotal(self):
+        """discount_value=150% при subtotal=1000 → discount=1000 (не 1500)."""
+        p = SimpleNamespace(
+            discount_type=DiscountType.PERCENTAGE,
+            discount_value=Decimal("150.00"),
+        )
+        assert _calculate_discount(p, Decimal("1000.00")) == Decimal("1000.00")
+
+    def test_percentage_100_percent_is_subtotal(self):
+        """discount_value=100% → discount=subtotal, total=0."""
+        p = SimpleNamespace(
+            discount_type=DiscountType.PERCENTAGE,
+            discount_value=Decimal("100.00"),
+        )
+        assert _calculate_discount(p, Decimal("1000.00")) == Decimal("1000.00")

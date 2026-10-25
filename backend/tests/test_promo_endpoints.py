@@ -336,3 +336,31 @@ class TestCreateOrderWithPromo:
 
         await db_session.refresh(promo_code)
         assert promo_code.used_count == 0   # не инкрементирован
+
+    @pytest.mark.asyncio
+    async def test_order_with_150_percent_promo_total_zero(
+        self, client, auth_headers, address, cart_with_one_item, db_session
+    ):
+        """Промокод 150% → discount=subtotal=2000, total=0, не 500."""
+        now = datetime.now(timezone.utc)
+        p = PromoCode(
+            code="OVER150",
+            discount_type=DiscountType.PERCENTAGE,
+            discount_value=Decimal("150.00"),
+            valid_from=now - timedelta(days=1),
+            valid_until=now + timedelta(days=30),
+            is_active=True,
+        )
+        db_session.add(p)
+        await db_session.flush()
+
+        response = await client.post(
+            "/api/v1/orders",
+            json={"address_id": address.id, "promo_code": "OVER150"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 201, response.json()
+        body = response.json()
+        assert Decimal(body["subtotal"]) == Decimal("2000.00")
+        assert Decimal(body["discount_amount"]) == Decimal("2000.00")
+        assert Decimal(body["total"]) == Decimal("0.00")
