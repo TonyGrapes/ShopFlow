@@ -215,7 +215,7 @@ async def update_product(
         await db.flush()
     except IntegrityError as exc:
         if _is_active_name_conflict(exc):
-            new_name = update_data.name or "existing"
+            new_name = update_data.get("name") or "existing"
             raise ConflictError(f"Product with name '{new_name}' already exists", code="name_taken") from exc
         logger.exception("Unexpected IntegrityError on update_product")
         raise

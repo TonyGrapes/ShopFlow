@@ -1,10 +1,11 @@
 # tests/test_openapi_matches_frontend_types.py
 import json
+from functools import lru_cache
 from pathlib import Path
 
 import pytest
-from functools import lru_cache
 from app.main import app  # ← импорт вместо фикстуры
+
 
 @lru_cache
 def _openapi_schema():
