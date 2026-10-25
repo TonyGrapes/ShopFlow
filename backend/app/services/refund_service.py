@@ -24,7 +24,7 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError
+from app.core.exceptions import ConflictError, ValidationError
 from app.db.enum import PaymentStatus, RefundStatus
 from app.models.payment import Payment
 from app.models.refund import Refund
@@ -98,13 +98,16 @@ async def create_refund(
     """
     Создаёт Refund и (mock) сразу переводит в completed.
 
-    Порядок проверок:
+    Порядок:
     1. external_id replay → возвращаем существующий (200).
     2. payment.status != completed → 422.
     3. reason невалиден → 422.
-    4. amount > остатка → 422.
-    5. Создание Refund (status=completed, refunded_at=now).
-    6. Если sum(refunds) == payment.amount → payment.status = refunded.
+    4. SELECT payment FOR UPDATE — блокируем строку до конца транзакции.
+       RACE-03: параллельный create_refund ждёт, а не читает устаревшее
+       already_refunded.
+    5. amount > остатка → 422.
+    6. Создание Refund (status=completed, refunded_at=now).
+    7. Если sum(refunds) == payment.amount → payment.status = refunded.
     """
     # 1. Идемпотентность
     if data.external_id is not None:
@@ -119,39 +122,48 @@ async def create_refund(
                     data.external_id, payment.public_id, existing.public_id,
                 )
                 return existing
-            raise ConflictError("external_id already used by another refund", code="external_id_taken", extra={"external_id": data.external_id})
+            raise ConflictError(
+                "external_id already used by another refund",
+                code="external_id_taken",
+                extra={"external_id": data.external_id},
+            )
 
     # 2. Платёж должен быть completed
     if payment.status != PaymentStatus.COMPLETED:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "code": "payment_not_refundable",
-                "status": payment.status.value,
-                "message": f"Payment in status '{payment.status.value}' cannot be refunded",
-            },
+        raise ValidationError(
+            f"Payment in status '{payment.status.value}' cannot be refunded",
+            code="payment_not_refundable",
+            extra={"status": payment.status.value},
         )
 
     # 3. Reason
     if data.reason is not None and data.reason not in _ALLOWED_REASONS:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "code": "invalid_refund_reason",
-                "reason": data.reason,
-                "allowed": sorted(_ALLOWED_REASONS),
-            },
+        raise ValidationError(
+            f"Invalid refund reason: {data.reason}",
+            code="invalid_refund_reason",
+            extra={"reason": data.reason, "allowed": sorted(_ALLOWED_REASONS)},
         )
 
-    # 4. Amount <= остаток
+    # 4. RACE-03: блокируем строку payment до конца транзакции.
+    #    Параллельный create_refund будет ждать этот FOR UPDATE.
+    #    После commit первого — второй получит актуальный already_refunded.
+    locked_payment = (await db.execute(
+        select(Payment)
+        .where(Payment.id == payment.id)
+        .with_for_update()
+    )).scalar_one()
+    # locked_payment — тот же объект, что payment (identity map),
+    # но SQLAlchemy гарантирует, что строка в БД заблокирована.
+
+    # 5. Amount <= остаток (после блокировки — согласованное состояние)
     already_refunded = await _get_refunded_sum(db, payment.id)
     max_refundable = payment.amount - already_refunded
 
     if data.amount > max_refundable:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "code": "amount_exceeds_remaining",
+        raise ValidationError(
+            f"Amount {data.amount} exceeds remaining {max_refundable}",
+            code="amount_exceeds_remaining",
+            extra={
                 "amount": str(data.amount),
                 "max_refundable": str(max_refundable),
                 "already_refunded": str(already_refunded),
@@ -159,7 +171,7 @@ async def create_refund(
             },
         )
 
-    # 5. Создание Refund (mock: сразу completed)
+    # 6. Создание Refund
     now = datetime.now(timezone.utc)
     refund = Refund(
         payment_id=payment.id,
@@ -181,11 +193,15 @@ async def create_refund(
                 )).scalar_one_or_none()
                 if existing is not None and existing.payment_id == payment.id:
                     return existing
-            raise ConflictError("external_id already used", code="external_id_taken") from exc
+            raise ConflictError(
+                "external_id already used",
+                code="external_id_taken",
+                extra={"external_id": data.external_id},
+            ) from exc
         logger.exception("Unexpected IntegrityError on create_refund")
         raise
 
-    # 6. Полный возврат → payment.status = refunded
+    # 7. Полный возврат → payment.status = refunded
     new_total = already_refunded + data.amount
     if new_total == payment.amount:
         payment.status = PaymentStatus.REFUNDED
@@ -196,7 +212,6 @@ async def create_refund(
         )
 
     return refund
-
 
 # ============================================================
 #  Чтение

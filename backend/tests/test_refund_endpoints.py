@@ -15,12 +15,10 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import select
-
 from app.db.enum import PaymentStatus, RefundStatus
 from app.models.payment import Payment
 from app.models.refund import Refund
-
+from sqlalchemy import select
 
 # ============================================================
 #  POST /admin/payments/{payment_id}/refund
@@ -95,9 +93,9 @@ class TestCreateRefundEndpoint:
             headers=admin_headers,
         )
         assert response.status_code == 422
-        detail = response.json()["detail"]
-        assert detail["code"] == "amount_exceeds_remaining"
-        assert detail["max_refundable"] == "1000.00"
+        body = response.json()
+        assert body["code"] == "amount_exceeds_remaining"
+        assert body["max_refundable"] == "1000.00"
 
     @pytest.mark.asyncio
     async def test_invalid_reason_422(
@@ -109,7 +107,7 @@ class TestCreateRefundEndpoint:
             headers=admin_headers,
         )
         assert response.status_code == 422
-        assert response.json()["detail"]["code"] == "invalid_refund_reason"
+        assert response.json()["code"] == "invalid_refund_reason"
 
     @pytest.mark.asyncio
     async def test_amount_zero_422(
@@ -136,7 +134,7 @@ class TestCreateRefundEndpoint:
             headers=admin_headers,
         )
         assert response.status_code == 422
-        assert response.json()["detail"]["code"] == "payment_not_refundable"
+        assert response.json()["code"] == "payment_not_refundable"
 
     @pytest.mark.asyncio
     async def test_idempotent_replay(

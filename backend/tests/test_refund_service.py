@@ -13,6 +13,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
+from app.core.exceptions import ConflictError, ValidationError
 from app.db.enum import PaymentStatus, RefundStatus
 from app.models.payment import Payment
 from app.models.refund import Refund
@@ -21,7 +22,6 @@ from app.services import refund_service
 from app.services.refund_service import validate_refund_transition
 from fastapi import HTTPException
 from sqlalchemy import select
-from app.core.exceptions import ConflictError
 
 # ============================================================
 #  create_refund — happy path
@@ -193,27 +193,27 @@ class TestCreateRefundValidation:
         payment_for_refund.status = PaymentStatus.PENDING
         await db_session.flush()
 
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             await refund_service.create_refund(
                 db_session, payment_for_refund,
                 RefundCreate(amount=Decimal("100.00")),
             )
         assert exc.value.status_code == 422
-        assert exc.value.detail["code"] == "payment_not_refundable"
+        assert exc.value.code == "payment_not_refundable"
 
     @pytest.mark.asyncio
     async def test_invalid_reason_422(
         self, db_session, payment_for_refund
     ):
         """Reason вне списка → 422."""
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             await refund_service.create_refund(
                 db_session, payment_for_refund,
                 RefundCreate(amount=Decimal("100.00"), reason="hacked"),
             )
         assert exc.value.status_code == 422
-        assert exc.value.detail["code"] == "invalid_refund_reason"
-        assert "hacked" in exc.value.detail["reason"]
+        assert exc.value.code == "invalid_refund_reason"
+        assert "hacked" in exc.value.extra["reason"]
 
     @pytest.mark.asyncio
     async def test_amount_exceeds_remaining_422(
@@ -228,15 +228,15 @@ class TestCreateRefundValidation:
         await db_session.refresh(payment_for_refund)
 
         # Пробуем вернуть 300 (осталось только 200)
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             await refund_service.create_refund(
                 db_session, payment_for_refund,
                 RefundCreate(amount=Decimal("300.00"), external_id="r-second"),
             )
         assert exc.value.status_code == 422
-        assert exc.value.detail["code"] == "amount_exceeds_remaining"
-        assert exc.value.detail["max_refundable"] == "200.00"
-        assert exc.value.detail["already_refunded"] == "800.00"
+        assert exc.value.code == "amount_exceeds_remaining"
+        assert exc.value.extra["max_refundable"] == "200.00"
+        assert exc.value.extra["already_refunded"] == "800.00"
 
     @pytest.mark.asyncio
     async def test_amount_equal_to_remaining_ok(
