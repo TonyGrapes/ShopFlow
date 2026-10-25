@@ -3,7 +3,15 @@ import uuid
 from decimal import Decimal
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import BigInteger, ForeignKey, Index, Numeric, text, Text
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    Numeric,
+    Text,
+    text,
+)
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -84,6 +92,7 @@ class Order(Base, TimeStampMixin):
     payments: Mapped[list["Payment"]] = relationship(back_populates="order")
 
     __table_args__ = (
+        CheckConstraint("total >= 0", name="chk_orders_total_non_negative"),
         Index("ix_orders_public_id", "public_id", unique=True),   
         Index("idx_orders_user_id", "user_id"),
         Index("idx_orders_status", "status"),

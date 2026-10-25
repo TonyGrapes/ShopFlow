@@ -3,7 +3,16 @@ from datetime import datetime
 from decimal import Decimal
 from typing import TYPE_CHECKING, Optional
 
-from sqlalchemy import BigInteger, DateTime, ForeignKey, Index, Numeric, Text, text
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Index,
+    Numeric,
+    Text,
+    text,
+)
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.dialects.postgresql import UUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -76,6 +85,7 @@ class Payment(TimeStampMixin, Base):
     refunds: Mapped[list["Refund"]] = relationship(back_populates="payment", cascade="all, delete-orphan")
 
     __table_args__ = (
+        CheckConstraint("amount > 0", name="chk_payments_amount_positive"),
         Index("idx_payments_order_id", "order_id"),
         Index("idx_payments_status", "status"),
         # Уникальный external_id только для не-null значений

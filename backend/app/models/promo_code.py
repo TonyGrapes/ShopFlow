@@ -28,6 +28,10 @@ class PromoCode(TimeStampMixin, Base):
     is_active: Mapped[bool] = mapped_column(Boolean, server_default="true", nullable=False)
 
     __table_args__ = (
+        CheckConstraint(
+        "discount_type != 'percentage' OR (discount_value >= 1 AND discount_value <= 100)",
+        name="chk_promo_percentage_range",
+        ),
         CheckConstraint("discount_value > 0", name="chk_promo_discount_positive"),
         CheckConstraint("valid_until > valid_from", name="chk_promo_valid_dates"),
         Index("idx_promo_codes_active", "is_active", postgresql_where=(is_active.is_(True))),

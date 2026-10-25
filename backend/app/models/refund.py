@@ -84,6 +84,7 @@ class Refund(TimeStampMixin, Base):
 
 
     __table_args__ = (
+        CheckConstraint("amount > 0", name="chk_refunds_amount_positive"),
         Index("ix_refunds_public_id", "public_id", unique=True),
         Index("idx_refunds_payment_id", "payment_id"),
         Index("idx_refunds_status", "status"),

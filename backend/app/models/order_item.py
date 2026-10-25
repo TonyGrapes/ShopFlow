@@ -70,6 +70,7 @@ class OrderItem(TimeStampMixin, Base):
     product: Mapped["Product"] = relationship()
 
     __table_args__ = (
+        CheckConstraint("product_cost >= 0", name="chk_order_items_cost_non_negative"),
         CheckConstraint("product_count > 0", name="chk_order_item_count_positive"),
         UniqueConstraint("order_id", "product_id", name="uq_order_item_product"),
         Index("idx_order_items_order_id", "order_id"),
