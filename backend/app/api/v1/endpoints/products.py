@@ -10,6 +10,7 @@ from app.api.v1.deps import (
     User,
     get_cache_service,
     get_current_active_user,
+    require_deleted_access,
     require_roles,
 )
 from app.core.config import get_settings
@@ -77,14 +78,7 @@ async def list_products(
     status_filter: Optional[ProductStatus] = Query(None, alias="status"),
     sort_by: str = Query("id", pattern="^(id|name|cost|created_at)$"),
     sort_order: str = Query("asc", pattern="^(asc|desc)$"),
-    # ← НОВОЕ: include_deleted для админки. По умолчанию False — публичное поведение.
-    include_deleted: bool = Query(
-        False,
-        description=(
-            "Include soft-deleted products (admin use). "
-            "Bypasses cache to avoid mixing public and admin views."
-        ),
-    ),
+    include_deleted: bool = Depends(require_deleted_access),
     db: AsyncSession = Depends(get_db),
     cache: CacheService = Depends(get_cache_service),
 ):

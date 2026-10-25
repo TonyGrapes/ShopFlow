@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 import jwt
-from fastapi import Depends, HTTPException, Request, Response, status
+from fastapi import Depends, HTTPException, Request, Response, status, Query
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from redis.asyncio import Redis
 from sqlalchemy import select
@@ -202,3 +202,49 @@ def get_guest_cart_store(
     from app.services.cart_service import GuestCartStore
     return GuestCartStore(redis)
 
+
+async def require_deleted_access(
+    include_deleted: bool = Query(False),
+    credentials: HTTPAuthorizationCredentials | None = Depends(security),
+    db: AsyncSession = Depends(get_db),
+) -> bool:
+    """
+    Проверяет, может ли клиент видеть soft-deleted товары.
+
+    Возвращает include_deleted (флаг).
+
+    Правила:
+    - include_deleted=False → OK для всех (публичный доступ).
+    - include_deleted=True + аноним → 403 (флаг админский).
+    - include_deleted=True + CUSTOMER → 403.
+    - include_deleted=True + ADMIN/MODERATOR → OK.
+
+    Не используем get_current_active_user напрямую, потому что:
+    - аноним не должен получать 401 (эндпоинт публичный);
+    - нужен 403 только при include_deleted=True.
+    """
+    if not include_deleted:
+        return False
+
+    if credentials is None or not credentials.credentials:
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="include_deleted requires admin or moderator role",
+        )
+
+    try:
+        user = await get_current_active_user(credentials, db)
+    except HTTPException:
+        # Битый/просроченный Bearer — 403, не 401
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="include_deleted requires admin or moderator role",
+        )
+
+    if user.role not in (UserRole.ADMIN, UserRole.MODERATOR):
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            detail="include_deleted requires admin or moderator role",
+        )
+
+    return True

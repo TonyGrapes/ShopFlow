@@ -216,7 +216,7 @@ class TestIncludeDeleted:
 
     @pytest.mark.asyncio
     async def test_with_flag_includes_deleted(
-        self, client, db_session, category
+        self, client, db_session, category, admin_headers
     ):
         """include_deleted=true возвращает и deleted."""
         active = Product(
@@ -231,7 +231,7 @@ class TestIncludeDeleted:
         db_session.add_all([active, deleted])
         await db_session.flush()
 
-        response = await client.get("/api/v1/products?include_deleted=true")
+        response = await client.get("/api/v1/products?include_deleted=true", headers=admin_headers,)
         assert response.status_code == 200
         body = response.json()
         assert body["total"] == 2
@@ -240,7 +240,7 @@ class TestIncludeDeleted:
 
     @pytest.mark.asyncio
     async def test_bypasses_cache(
-        self, client, mock_cache, db_session, category
+        self, client, mock_cache, db_session, category, admin_headers
     ):
         """
         include_deleted=true не пишет и не читает из кэша.
@@ -248,7 +248,7 @@ class TestIncludeDeleted:
         """
         mock_cache._storage.clear()
 
-        response = await client.get("/api/v1/products?include_deleted=true")
+        response = await client.get("/api/v1/products?include_deleted=true", headers=admin_headers)
         assert response.status_code == 200
         assert response.headers["X-Cache"] == "BYPASS"
 
@@ -257,7 +257,7 @@ class TestIncludeDeleted:
 
     @pytest.mark.asyncio
     async def test_combines_with_filters(
-        self, client, db_session, category
+        self, client, db_session, category, admin_headers
     ):
         """include_deleted + другие фильтры работают вместе."""
         active = Product(
@@ -275,7 +275,7 @@ class TestIncludeDeleted:
         await db_session.flush()
 
         response = await client.get(
-            "/api/v1/products?include_deleted=true&status=out_of_stock"
+            "/api/v1/products?include_deleted=true&status=out_of_stock", headers=admin_headers,
         )
         assert response.status_code == 200
         body = response.json()
@@ -283,15 +283,58 @@ class TestIncludeDeleted:
         assert body["items"][0]["id"] == deleted.id
 
     @pytest.mark.asyncio
-    async def test_public_no_auth(
+    async def test_include_deleted_requires_auth(self, client):
+        """✅ SEC-001: include_deleted=true без токена → 403."""
+        response = await client.get("/api/v1/products?include_deleted=true")
+        assert response.status_code == 403
+        assert "admin" in response.json()["detail"].lower()
+
+    @pytest.mark.asyncio
+    async def test_include_deleted_requires_admin_role(
+        self, client, auth_headers
+    ):
+        """✅ SEC-001: include_deleted=true с CUSTOMER → 403."""
+        response = await client.get(
+            "/api/v1/products?include_deleted=true",
+            headers=auth_headers,
+        )
+        assert response.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_include_deleted_allowed_for_admin(
+        self, client, admin_headers
+    ):
+        """✅ SEC-001: include_deleted=true с ADMIN → 200."""
+        response = await client.get(
+            "/api/v1/products?include_deleted=true",
+            headers=admin_headers,
+        )
+        assert response.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_include_deleted_allowed_for_moderator(
         self, client, db_session, category
     ):
-        """
-        include_deleted — флаг, но эндпоинт публичный.
-        Это осознанно: гости могут видеть soft-deleted через флаг.
+        """✅ SEC-001: MODERATOR тоже может."""
+        from app.core.security import create_access_token, hash_password
+        from app.db.enum import UserRole, UserStatus
+        from app.models.user import User as UserModel
 
-        Альтернатива — требовать роль ADMIN/MODERATOR. Но текущая
-        реализация этого не делает. Фиксируем как design decision.
-        """
-        response = await client.get("/api/v1/products?include_deleted=true")
+        mod = UserModel(
+            email="mod@example.com",
+            password_hash=hash_password("mod-pass-1234"),
+            first_name="Mod", last_name="User", phone_number="+79990000099",
+            role=UserRole.MODERATOR,
+            status=UserStatus.ACTIVE,
+            is_email_verified=True,
+        )
+        db_session.add(mod)
+        await db_session.flush()
+        await db_session.refresh(mod)
+
+        headers = {"Authorization": f"Bearer {create_access_token(str(mod.public_id))}"}
+        response = await client.get(
+            "/api/v1/products?include_deleted=true",
+            headers=headers,
+        )
         assert response.status_code == 200
