@@ -136,6 +136,69 @@ class TestCreateOrderEndpoint:
         )
         assert response.status_code == 422
 
+    @pytest.mark.asyncio
+    async def test_create_order_idempotent_replay(
+        self, client, db_session, auth_headers, verified_user,
+        address, cart_with_one_item,
+    ):
+        """Повтор с тем же Idempotency-Key и телом → тот же заказ."""
+        r1 = await client.post(
+            "/api/v1/orders",
+            json={"address_id": address.id},
+            headers={**auth_headers, "Idempotency-Key": "key-1"},
+        )
+        assert r1.status_code == 201, r1.json()
+        pid1 = r1.json()["public_id"]
+
+        r2 = await client.post(
+            "/api/v1/orders",
+            json={"address_id": address.id},
+            headers={**auth_headers, "Idempotency-Key": "key-1"},
+        )
+        assert r2.status_code == 201
+        pid2 = r2.json()["public_id"]
+        assert pid1 == pid2
+
+        orders = (await db_session.execute(
+            select(Order).where(Order.user_id == verified_user.id)
+        )).scalars().all()
+        assert len(orders) == 1
+
+
+    @pytest.mark.asyncio
+    async def test_create_order_idempotency_key_reused_with_different_body(
+        self, client, auth_headers, address, address_for_admin,
+        cart_with_one_item,
+    ):
+        """Тот же ключ, другое тело → 409."""
+        r1 = await client.post(
+            "/api/v1/orders",
+            json={"address_id": address.id},
+            headers={**auth_headers, "Idempotency-Key": "key-2"},
+        )
+        assert r1.status_code == 201
+
+        r2 = await client.post(
+            "/api/v1/orders",
+            json={"address_id": address_for_admin.id},
+            headers={**auth_headers, "Idempotency-Key": "key-2"},
+        )
+        assert r2.status_code == 409
+        assert r2.json()["code"] == "idempotency_key_reused"
+
+
+    @pytest.mark.asyncio
+    async def test_create_order_without_idempotency_key_works(
+        self, client, auth_headers, address, cart_with_one_item
+    ):
+        """Без Idempotency-Key — 201, как было."""
+        r = await client.post(
+            "/api/v1/orders",
+            json={"address_id": address.id},
+            headers=auth_headers,
+        )
+        assert r.status_code == 201
+
 
 # ============================================================
 #  GET /orders

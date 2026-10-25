@@ -11,16 +11,19 @@
 - Ownership: get_order_detail отдаёт 404 для чужих, не 403
   (не раскрываем существование).
 """
+import hashlib
+import json
 import logging
 from decimal import Decimal
 from typing import Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete, func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.exceptions import ValidationError
+from app.core.exceptions import ConflictError, ValidationError
 from app.db.enum import OrderStatus, ProductStatus
 from app.models.address import Address
 from app.models.cart_item import CartItem
@@ -73,6 +76,23 @@ def validate_transition(current: OrderStatus, new: OrderStatus) -> None:
             },
         )
 
+_IDEMPOTENCY_CONSTRAINT = "uq_orders_user_idempotency_key"
+
+def _is_idempotency_conflict(exc: IntegrityError) -> bool:
+    orig = getattr(exc, "orig", None)
+    if orig is None:
+        return False
+    sqlstate = getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
+    if sqlstate != "23505":
+        return False
+    message = str(orig)
+    diag = getattr(orig, "diag", None)
+    constraint_name = getattr(diag, "constraint_name", None) if diag else None
+    return (
+        constraint_name == _IDEMPOTENCY_CONSTRAINT
+        or _IDEMPOTENCY_CONSTRAINT in message
+    )
+
 
 # ============================================================
 #  Создание заказа из корзины
@@ -83,6 +103,7 @@ async def create_order_from_cart(
     user: User,
     address_id: int,
     promo_code: str | None = None,
+    idempotency_key: str | None = None,
 ) -> Order:
     """
     Создаёт заказ из корзины юзера. Всё в одной транзакции.
@@ -104,7 +125,32 @@ async def create_order_from_cart(
     То есть «при ошибке корзина не очищена» сохраняется.
 
     НЕ трогаем guest-cart в Redis: она уже очищена при login.
-    """
+
+    DATA-01: идемпотентность по Idempotency-Key.
+    - Повтор с тем же ключом + тем же телом → существующий Order (200).
+    - Повтор с тем же ключом + другим телом → ConflictError(409).
+    - Без ключа → обычное поведение.
+      """
+    # 0. Idempotency pre-check
+    body_hash: Optional[str] = None
+    if idempotency_key is not None:
+        body_hash = _hash_idempotency_body(address_id, promo_code)
+        existing = await _find_existing_by_idempotency_key(
+            db, user.id, idempotency_key
+        )
+        if existing is not None:
+            if existing.idempotency_body_hash == body_hash:
+                # replay — возвращаем существующий
+                logger.info(
+                    "Idempotent replay: order public_id=%s key=%s",
+                    existing.public_id, idempotency_key,
+                )
+                return await _load_order(db, existing.id)
+            raise ConflictError(
+                "Idempotency-Key reused with different body",
+                code="idempotency_key_reused",
+            )
+        
     # 1. Валидация адреса
     address = await db.get(Address, address_id)
     if address is None or address.user_id != user.id:
@@ -197,7 +243,7 @@ async def create_order_from_cart(
     # 7. total
     total = subtotal - (discount or Decimal("0.00"))
 
-    # 8. Order INSERT
+        # 8. Order INSERT — добавить поля
     order = Order(
         user_id=user.id,
         total=total,
@@ -205,9 +251,39 @@ async def create_order_from_cart(
         shipping_address_id=address_id,
         promo_code=applied_code,
         discount_amount=discount,
+        idempotency_key=idempotency_key,
+        idempotency_body_hash=body_hash,
     )
     db.add(order)
-    await db.flush()
+    try:
+        await db.flush()
+    except IntegrityError as exc:
+        if _is_idempotency_conflict(exc):
+            # Гонка: другой параллельный запрос уже создал заказ с этим ключом.
+            # Пытаемся найти — если другой уже закоммитил, вернём его.
+            existing = await _find_existing_by_idempotency_key(
+                db, user.id, idempotency_key  # type: ignore[arg-type]
+            )
+            if existing is not None:
+                if existing.idempotency_body_hash == body_hash:
+                    logger.info(
+                        "Idempotent replay (race): order public_id=%s key=%s",
+                        existing.public_id, idempotency_key,
+                    )
+                    return await _load_order(db, existing.id)
+                raise ConflictError(
+                    "Idempotency-Key reused with different body",
+                    code="idempotency_key_reused",
+                ) from exc
+            # Known limitation: другой запрос ещё не закоммитил.
+            # 500 (get_db rollback), клиент может ретраить.
+            logger.warning(
+                "Idempotency race unresolved: key=%s, returning 500",
+                idempotency_key,
+            )
+            raise
+        logger.exception("Unexpected IntegrityError on create_order_from_cart")
+        raise
 
     # 9. OrderItem INSERT
     #    product_cost — snapshot из cart_items, НЕ из products.cost.
@@ -430,3 +506,29 @@ async def _load_order(db: AsyncSession, order_id: int) -> Order:
         )
     )
     return result.scalar_one()
+
+def _hash_idempotency_body(address_id: int, promo_code: str | None) -> str:
+    """
+    SHA-256 от канонического тела запроса.
+
+    Только поля, влияющие на заказ: address_id, promo_code.
+    sort_keys=True — детерминированный JSON.
+    """
+    canonical = json.dumps(
+        {"address_id": address_id, "promo_code": promo_code},
+        sort_keys=True,
+        ensure_ascii=False,
+    )
+    return hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+
+
+async def _find_existing_by_idempotency_key(
+    db: AsyncSession, user_id: int, idempotency_key: str
+) -> Optional[Order]:
+    result = await db.execute(
+        select(Order).where(
+            Order.user_id == user_id,
+            Order.idempotency_key == idempotency_key,
+        )
+    )
+    return result.scalar_one_or_none()

@@ -91,9 +91,25 @@ class Order(Base, TimeStampMixin):
     )
     payments: Mapped[list["Payment"]] = relationship(back_populates="order")
 
+    idempotency_key: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+    idempotency_body_hash: Mapped[Optional[str]] = mapped_column(
+        Text,
+        nullable=True,
+    )
+
     __table_args__ = (
         CheckConstraint("total >= 0", name="chk_orders_total_non_negative"),
-        Index("ix_orders_public_id", "public_id", unique=True),   
+        Index("ix_orders_public_id", "public_id", unique=True),
+        Index(
+            "uq_orders_user_idempotency_key",
+            "user_id",
+            "idempotency_key",
+            unique=True,
+            postgresql_where=text("idempotency_key IS NOT NULL"),
+        ),
         Index("idx_orders_user_id", "user_id"),
         Index("idx_orders_status", "status"),
         Index("idx_orders_shipping_address", "shipping_address_id"),

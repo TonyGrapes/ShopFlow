@@ -11,6 +11,7 @@ import logging
 from typing import Optional
 
 from app.api.v1.deps import User, get_current_active_user
+from app.core.exceptions import ValidationError
 from app.db.enum import OrderStatus
 from app.db.session import get_db
 from app.schemas.common import Paginated
@@ -21,7 +22,7 @@ from app.schemas.order import (
 )
 from app.schemas.payment import PaymentRequest, PaymentResponse
 from app.services import order_service, payment_service
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
@@ -41,13 +42,26 @@ async def create_order(
     data: OrderCreate,
     current: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
+    idempotency_key: str | None = Header(None, alias="Idempotency-Key"),
 ):
-    """..."""
+    """
+    Создаёт заказ.
+
+    Idempotency-Key (опциональный header):
+    - повтор с тем же ключом и телом → существующий Order (201, idempotent);
+    - повтор с тем же ключом, но другим телом → 409 idempotency_key_reused.
+    """
+    if idempotency_key is not None and len(idempotency_key) > 64:
+        raise ValidationError(
+            "Idempotency-Key must be <= 64 chars",
+            code="invalid_idempotency_key",
+        )
     order = await order_service.create_order_from_cart(
         db=db,
         user=current.orm,
         address_id=data.address_id,
-        promo_code=data.promo_code,      # ← новое
+        promo_code=data.promo_code,
+        idempotency_key=idempotency_key,
     )
     return order_service.serialize_order(order)
 
