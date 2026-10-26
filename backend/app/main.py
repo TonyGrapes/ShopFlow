@@ -54,11 +54,16 @@ app = FastAPI(
     description="A simple shop API",
     version="1.0.0",
     lifespan=lifespan,
+    # ✅ CFG-002: в prod docs/openapi отключены
+    docs_url="/docs" if settings.ENVIRONMENT == "dev" else None,
+    redoc_url="/redoc" if settings.ENVIRONMENT == "dev" else None,
+    openapi_url="/openapi.json" if settings.ENVIRONMENT == "dev" else None,
 )
 
+# ✅ CFG-003: origins из Settings
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

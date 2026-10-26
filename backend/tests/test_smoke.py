@@ -31,3 +31,14 @@ async def test_refund_reason_constraint_exists(client, db_session):
         """)
     )
     assert result.scalar_one_or_none() == "chk_refund_reason"
+
+@pytest.mark.asyncio
+async def test_docs_available_in_dev(client):
+    """CFG-002: в dev /docs доступен."""
+    response = await client.get("/docs")
+    assert response.status_code == 200
+
+@pytest.mark.asyncio
+async def test_openapi_available_in_dev(client):
+    response = await client.get("/openapi.json")
+    assert response.status_code == 200

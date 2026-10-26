@@ -1,7 +1,8 @@
 # app/core/config.py
 from functools import lru_cache
+from typing import Literal
 
-from pydantic import Field, SecretStr, field_validator
+from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -98,6 +99,46 @@ class Settings(BaseSettings):
         description="Лимит позиций в корзине (защита от абуза)",
     )
 
+    # ==========================================
+    # ENVIRONMENT
+    # ==========================================
+    ENVIRONMENT: Literal["dev", "prod"] = Field(
+        default="dev",
+        description="Окружение. Влияет на безопасные дефолты (cookie, docs, CORS).",
+    )
+
+    # ==========================================
+    # CORS (CFG-003)
+    # ==========================================
+    CORS_ORIGINS: list[str] = Field(
+        default=["http://localhost:3000", "http://localhost:5173"],
+        description="Разрешённые origins. В prod — переопределить через env (JSON-список).",
+    )
+
+    # ==========================================
+    # AUTH: Cookie (CFG-001 — обновить default)
+    # ==========================================
+    # REFRESH_COOKIE_SECURE остаётся, но default зависит от ENVIRONMENT
+    # (см. валидатор ниже)
+
+    @model_validator(mode="after")
+    def _validate_prod_security(self) -> "Settings":
+        """
+        CFG-001: fail-fast проверки безопасности для prod.
+
+        - REFRESH_COOKIE_SECURE обязателен True в prod.
+        - CORS_ORIGINS не должен содержать localhost в prod.
+        """
+        if self.ENVIRONMENT == "prod":
+            if not self.REFRESH_COOKIE_SECURE:
+                raise ValueError(
+                    "REFRESH_COOKIE_SECURE must be True in prod (https only)"
+                )
+            if any("localhost" in o or "127.0.0.1" in o for o in self.CORS_ORIGINS):
+                raise ValueError(
+                    "CORS_ORIGINS must not contain localhost/127.0.0.1 in prod"
+                )
+        return self
 
     @field_validator("SECRET_KEY")
     @classmethod
