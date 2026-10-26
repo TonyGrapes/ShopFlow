@@ -575,3 +575,53 @@ class TestRequireRoles:
             "/api/v1/products", json=payload, headers=headers
         )
         assert response.status_code == 201
+
+# tests/test_auth.py
+class TestInvalidTokenNeutralDetail:
+    """✅ SEC-002: детали pyjwt не утекают клиенту."""
+
+    @pytest.mark.asyncio
+    async def test_invalid_token_neutral_detail(self, client, verified_user):
+        """Битый токен → 401 с нейтральным detail, без pyjwt-текста."""
+        response = await client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": "Bearer not-a-valid-jwt"},
+        )
+        assert response.status_code == 401
+        detail = response.json()["detail"].lower()
+        # Нейтральное сообщение
+        assert "invalid access token" in detail
+        # Не утекли внутренности pyjwt
+        assert "not enough segments" not in detail
+        assert "signature" not in detail
+        assert "decode" not in detail
+        assert "padding" not in detail
+
+    @pytest.mark.asyncio
+    async def test_expired_token_still_says_expired(self, client, verified_user):
+        """Просроченный токен → detail 'expired' (не утекает, но полезно)."""
+        import uuid
+        from datetime import datetime, timedelta, timezone
+
+        import jwt
+        from app.core.config import get_settings
+
+        s = get_settings()
+        now = datetime.now(timezone.utc)
+        expired = jwt.encode(
+            {
+                "sub": str(verified_user.public_id),
+                "type": "access",
+                "iat": now - timedelta(hours=2),
+                "exp": now - timedelta(hours=1),
+                "jti": uuid.uuid4().hex,
+            },
+            s.SECRET_KEY.get_secret_value(),
+            algorithm=s.ALGORITHM,
+        )
+        response = await client.get(
+            "/api/v1/auth/me",
+            headers={"Authorization": f"Bearer {expired}"},
+        )
+        assert response.status_code == 401
+        assert "expired" in response.json()["detail"].lower()

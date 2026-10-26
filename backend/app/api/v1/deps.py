@@ -6,12 +6,13 @@ FastAPI-зависимости.
 - require_roles: фабрика для RBAC (роль — в роутере).
 - Ownership: business-правило — в сервисе (не здесь).
 """
+import logging
 import secrets
 from dataclasses import dataclass
 from typing import Callable
 
 import jwt
-from fastapi import Depends, HTTPException, Request, Response, status, Query
+from fastapi import Depends, HTTPException, Query, Request, Response, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from redis.asyncio import Redis
 from sqlalchemy import select
@@ -27,6 +28,7 @@ from app.services.cache_service import CacheService
 from app.services.cart_service import GuestCartStore
 
 security = HTTPBearer(auto_error=False)
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -76,9 +78,15 @@ async def get_current_active_user(
             headers={"WWW-Authenticate": "Bearer"},
         )
     except jwt.InvalidTokenError as e:
+        # ✅ SEC-002: детали pyjwt — в лог, клиенту — нейтральное сообщение.
+        #    Утечка текста исключения = раскрытие реализации + oracle
+        #    на разные типы битых токенов.
+        logger.warning(
+            "Invalid access token rejected: %s", e, exc_info=False,
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail=f"Invalid access token: {e}",
+            detail="Invalid access token",
             headers={"WWW-Authenticate": "Bearer"},
         )
 
