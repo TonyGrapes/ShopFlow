@@ -44,3 +44,27 @@ async def test_docs_available_in_dev(client):
 async def test_openapi_available_in_dev(client):
     response = await client.get("/openapi.json")
     assert response.status_code == 200
+
+@pytest.mark.asyncio
+async def test_health_unhealthy_when_redis_down(
+    client, mock_storage, monkeypatch
+):
+    """OBS-003: если Redis недоступен — 503, но с детализацией."""
+    from unittest.mock import AsyncMock, Mock
+
+    from app.core.redis import get_redis
+
+    broken_redis = Mock()
+    broken_redis.ping = AsyncMock(side_effect=Exception("Redis down"))
+
+    # Переопределяем override для этого теста
+    from app.main import app as fastapi_app
+    fastapi_app.dependency_overrides[get_redis] = lambda: broken_redis
+
+    response = await client.get("/health")
+    assert response.status_code == 503
+    body = response.json()
+    assert body["status"] == "unhealthy"
+    assert body["redis"] == "unavailable"
+    assert body["database"] == "connected"
+    assert body["minio"] == "connected"

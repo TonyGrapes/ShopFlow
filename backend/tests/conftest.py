@@ -16,6 +16,7 @@ import fakeredis.aioredis
 import pytest
 import pytest_asyncio
 from app.api.v1.deps import get_cache_service, get_guest_cart_store
+from app.core.redis import get_redis
 from app.core.security import create_access_token, hash_password
 from app.db.base import Base
 from app.db.enum import ProductStatus, UserRole, UserStatus
@@ -227,7 +228,7 @@ def mock_storage():
 # ============ HTTP client ============
 
 @pytest_asyncio.fixture
-async def client(db_session, mock_storage, mock_cache):
+async def client(db_session, mock_storage, mock_cache, fake_redis):
     """
     HTTP-клиент с override get_db, get_storage, get_cache_service.
 
@@ -259,9 +260,13 @@ async def client(db_session, mock_storage, mock_cache):
     def override_get_cache_service():
         return mock_cache
 
+    def override_get_redis():
+        return fake_redis
+
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_storage] = override_get_storage
     app.dependency_overrides[get_cache_service] = override_get_cache_service
+    app.dependency_overrides[get_redis] = override_get_redis
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as tc:
@@ -363,7 +368,7 @@ async def real_guest_store(fake_redis):
 
 
 @pytest_asyncio.fixture
-async def guest_client(db_session, mock_storage, mock_cache, real_guest_store):
+async def guest_client(db_session, mock_storage, mock_cache, real_guest_store, fake_redis):
     """
     HTTP-клиент гостя: без Bearer, с override get_guest_cart_store.
 
@@ -390,10 +395,15 @@ async def guest_client(db_session, mock_storage, mock_cache, real_guest_store):
     def override_get_guest_cart_store():
         return real_guest_store
 
+    def override_get_redis():
+        return fake_redis
+
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_storage] = override_get_storage
     app.dependency_overrides[get_cache_service] = override_get_cache_service
     app.dependency_overrides[get_guest_cart_store] = override_get_guest_cart_store
+    app.dependency_overrides[get_redis] = override_get_redis
+    
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as tc:
@@ -403,7 +413,7 @@ async def guest_client(db_session, mock_storage, mock_cache, real_guest_store):
 
 
 @pytest_asyncio.fixture
-async def cart_client(db_session, mock_storage, mock_cache, real_guest_store):
+async def cart_client(db_session, mock_storage, mock_cache, real_guest_store, fake_redis):
     """Клиент для тестов корзины/избранного. Переиспользует db_session."""
     async def override_get_db():
         nested = await db_session.begin_nested()
@@ -426,10 +436,15 @@ async def cart_client(db_session, mock_storage, mock_cache, real_guest_store):
     def override_get_guest_cart_store():
         return real_guest_store
 
+    def override_get_redis():
+        return fake_redis
+
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_storage] = override_get_storage
     app.dependency_overrides[get_cache_service] = override_get_cache_service
     app.dependency_overrides[get_guest_cart_store] = override_get_guest_cart_store
+    app.dependency_overrides[get_redis] = override_get_redis
+    
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as tc:

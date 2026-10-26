@@ -2,11 +2,14 @@
 import asyncio
 import logging
 from contextlib import asynccontextmanager
+from typing import Annotated
 
-from fastapi import FastAPI, Request, Response, status
+from fastapi import Depends, FastAPI, Request, Response, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from redis.asyncio import Redis
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import models  # noqa: F401
 from app.api.v1.endpoints import (
@@ -29,6 +32,8 @@ from app.core.request_id import (
     RequestIDLogFilter,
     RequestIDMiddleware,
 )
+from app.db.session import get_db
+from app.services.storage_service import MinioStorage, get_storage
 
 settings = get_settings()
 
@@ -121,40 +126,39 @@ async def root():
     return {"message": "Welcome to ShopFlow API", "docs": "/docs"}
 
 
-# app/main.py — обновить health_check
-
 @app.get("/health")
-async def health_check(response: Response):
+async def health_check(
+    response: Response,
+    db: AsyncSession = Depends(get_db),
+    redis: Redis = Depends(get_redis),
+    storage: MinioStorage = Depends(get_storage),
+):
     """
     Healthcheck: БД + Redis + MinIO.
 
-    ✅ OBS-003: MinIO тоже проверяется (раньше — только БД + Redis).
-    Fail-soft: если MinIO недоступен — 503, но с детализацией по компонентам.
+    ✅ TST-005: все три источника через Depends — override'ы в тестах
+    работают (db_session, mock_storage, fake_redis). Не требует живого стека.
+
+    Fail-soft: возвращает 503 при недоступности любого компонента
+    с детализацией по каждому.
     """
     db_ok = False
     redis_ok = False
     minio_ok = False
 
     try:
-        from app.db.session import get_async_session_factory
-        factory = get_async_session_factory()
-        async with factory() as session:
-            await session.execute(text("SELECT 1"))
+        await db.execute(text("SELECT 1"))
         db_ok = True
     except Exception:
         logger.exception("Health: DB unavailable")
 
     try:
-        redis = get_redis()
         await redis.ping()
         redis_ok = True
     except Exception:
         logger.exception("Health: Redis unavailable")
 
     try:
-        # ✅ OBS-003: MinIO check. ensure_bucket идемпотентен + ping.
-        from app.services.storage_service import get_storage
-        storage = get_storage()
         await asyncio.to_thread(storage.ensure_bucket)
         minio_ok = True
     except Exception:
