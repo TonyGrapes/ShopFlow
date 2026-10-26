@@ -403,22 +403,6 @@ async def guest_client(db_session, mock_storage, mock_cache, real_guest_store):
 
 
 @pytest_asyncio.fixture
-async def fake_redis():
-    """FakeRedis для гостевой корзины. Изолирован per-test."""
-    r = fakeredis.aioredis.FakeRedis(decode_responses=True)
-    try:
-        yield r
-    finally:
-        await r.aclose()
-
-
-@pytest_asyncio.fixture
-async def real_guest_store(fake_redis):
-    """Реальный GuestCartStore поверх fakeredis — НЕ мок."""
-    return GuestCartStore(fake_redis)
-
-
-@pytest_asyncio.fixture
 async def cart_client(db_session, mock_storage, mock_cache, real_guest_store):
     """Клиент для тестов корзины/избранного. Переиспользует db_session."""
     async def override_get_db():
