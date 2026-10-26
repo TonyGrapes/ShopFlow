@@ -1,4 +1,5 @@
 # app/main.py
+import asyncio
 import logging
 from contextlib import asynccontextmanager
 
@@ -24,6 +25,10 @@ from app.api.v1.endpoints import (
 from app.core.config import get_settings
 from app.core.exceptions import AppError
 from app.core.redis import close_redis, get_redis
+from app.core.request_id import (
+    RequestIDLogFilter,
+    RequestIDMiddleware,
+)
 
 settings = get_settings()
 
@@ -32,6 +37,17 @@ logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
 )
 logger = logging.getLogger(__name__)
+# ✅ OBS-001: Filter на root logger + formatter с request_id
+_handler = logging.StreamHandler()
+_handler.setFormatter(logging.Formatter(
+    "%(asctime)s - %(name)s - %(levelname)s - [%(request_id)s] - %(message)s"
+))
+_handler.addFilter(RequestIDLogFilter())
+
+root = logging.getLogger()
+root.handlers.clear()
+root.addHandler(_handler)
+root.setLevel(logging.INFO)
 
 
 @asynccontextmanager
@@ -60,6 +76,7 @@ app = FastAPI(
     openapi_url="/openapi.json" if settings.ENVIRONMENT == "dev" else None,
 )
 
+
 # ✅ CFG-003: origins из Settings
 app.add_middleware(
     CORSMiddleware,
@@ -68,6 +85,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ✅ OBS-001: middleware до CORS (порядок: CORS снаружи, request-id внутри)
+app.add_middleware(RequestIDMiddleware)
 
 @app.exception_handler(AppError)
 async def app_error_handler(request: Request, exc: AppError):
@@ -101,13 +121,19 @@ async def root():
     return {"message": "Welcome to ShopFlow API", "docs": "/docs"}
 
 
+# app/main.py — обновить health_check
+
 @app.get("/health")
 async def health_check(response: Response):
     """
-    Healthcheck: БД + Redis.
+    Healthcheck: БД + Redis + MinIO.
+
+    ✅ OBS-003: MinIO тоже проверяется (раньше — только БД + Redis).
+    Fail-soft: если MinIO недоступен — 503, но с детализацией по компонентам.
     """
     db_ok = False
     redis_ok = False
+    minio_ok = False
 
     try:
         from app.db.session import get_async_session_factory
@@ -125,12 +151,27 @@ async def health_check(response: Response):
     except Exception:
         logger.exception("Health: Redis unavailable")
 
-    if db_ok and redis_ok:
-        return {"status": "healthy", "database": "connected", "redis": "connected"}
+    try:
+        # ✅ OBS-003: MinIO check. ensure_bucket идемпотентен + ping.
+        from app.services.storage_service import get_storage
+        storage = get_storage()
+        await asyncio.to_thread(storage.ensure_bucket)
+        minio_ok = True
+    except Exception:
+        logger.exception("Health: MinIO unavailable")
+
+    if db_ok and redis_ok and minio_ok:
+        return {
+            "status": "healthy",
+            "database": "connected",
+            "redis": "connected",
+            "minio": "connected",
+        }
 
     response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
     return {
         "status": "unhealthy",
         "database": "connected" if db_ok else "unavailable",
         "redis": "connected" if redis_ok else "unavailable",
+        "minio": "connected" if minio_ok else "unavailable",
     }
