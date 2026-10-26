@@ -52,10 +52,6 @@ class Refund(TimeStampMixin, Base):
 
     reason: Mapped[Optional[str]] = mapped_column(
         Text,
-        CheckConstraint(
-            "reason IN ('customer_request', 'defective', 'wrong_item', 'other')",
-            name="chk_refund_reason"
-        ),
         nullable=True
     )
 
@@ -84,6 +80,11 @@ class Refund(TimeStampMixin, Base):
 
 
     __table_args__ = (
+        CheckConstraint(
+            "reason IS NULL OR reason IN "
+            "('customer_request', 'defective', 'wrong_item', 'other')",
+            name="chk_refund_reason"
+            ),
         CheckConstraint("amount > 0", name="chk_refunds_amount_positive"),
         Index("ix_refunds_public_id", "public_id", unique=True),
         Index("idx_refunds_payment_id", "payment_id"),

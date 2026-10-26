@@ -17,3 +17,17 @@ async def test_root_endpoint(client):
     response = await client.get("/")
     assert response.status_code == 200
     assert "ShopFlow API" in response.json()["message"]
+
+
+@pytest.mark.asyncio
+async def test_refund_reason_constraint_exists(client, db_session):
+    """✅ Модель содержит chk_refund_reason (create_all его создаёт)."""
+    from sqlalchemy import text
+
+    result = await db_session.execute(
+        text("""
+            SELECT conname FROM pg_constraint
+            WHERE conname = 'chk_refund_reason'
+        """)
+    )
+    assert result.scalar_one_or_none() == "chk_refund_reason"
