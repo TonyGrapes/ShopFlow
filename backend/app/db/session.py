@@ -1,6 +1,6 @@
 # app/db/session.py
 from functools import lru_cache
-from fastapi import HTTPException, status
+
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,

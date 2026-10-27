@@ -46,10 +46,6 @@ class User:
     is_email_verified: bool
     orm: UserModel
 
-    @property
-    def is_active(self) -> bool:
-        return self.status == UserStatus.ACTIVE and self.is_email_verified
-
 
 async def get_current_active_user(
     credentials: HTTPAuthorizationCredentials | None = Depends(security),
@@ -207,7 +203,6 @@ def get_guest_cart_store(
     redis: Redis = Depends(get_redis),
 ) -> "GuestCartStore":
     """FastAPI-dependency для GuestCartStore."""
-    from app.services.cart_service import GuestCartStore
     return GuestCartStore(redis)
 
 
