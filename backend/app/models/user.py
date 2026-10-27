@@ -80,6 +80,10 @@ class User(TimeStampMixin, Base):
     )
     addresses: Mapped[list["Address"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     cart_items: Mapped[list["CartItem"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+        # ✅ SCHEMA-01: НЕ "all, delete-orphan" — заказы не удаляются
+        # с юзером (история покупок). FK orders.user_id ON DELETE RESTRICT
+        # в БД дополнительно защищает. Удаление юзера с заказами
+        # запрещено на уровне БД, а не ORM.
     orders: Mapped[list["Order"]] = relationship(back_populates="user", cascade="save-update, merge")
     reviews: Mapped[list["Review"]] = relationship(back_populates="user", cascade="all, delete-orphan")
     email_verifications: Mapped[list["EmailVerification"]] = relationship(back_populates="user", cascade="all, delete-orphan")
