@@ -1,7 +1,7 @@
 [project]
 name = "shopflow"
 version = "0.1.0"
-description = "Add your description here"
+description = "ShopFlow backend — FastAPI e-commerce API (products, cart, orders, payments, refunds)"
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
