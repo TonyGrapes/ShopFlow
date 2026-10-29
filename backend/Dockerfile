@@ -15,13 +15,13 @@ RUN groupadd -g 1000 appuser && \
 WORKDIR /app
 
 COPY --chown=appuser:appuser pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-install-project
+RUN uv sync --frozen --no-install-project --no-dev
 
 COPY --chown=appuser:appuser app/ ./app/
 COPY --chown=appuser:appuser ./alembic.ini ./alembic.ini
 COPY --chown=appuser:appuser ./alembic ./alembic
 
-RUN uv sync --frozen
+RUN uv sync --frozen --no-dev
 
 USER appuser
 

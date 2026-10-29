@@ -5,37 +5,29 @@ description = "ShopFlow backend — FastAPI e-commerce API (products, cart, orde
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-    "alembic[asyncio]>=1.18.5",
+    "alembic>=1.18.5",
     "asyncpg>=0.31.0",
     "email-validator>=2.3.0",
     "fastapi>=0.140.0",
-    "httpx>=0.28.1",
     "minio>=7.2.20",
-    "prometheus-client>=0.26.0",
+    # Alembic env.py uses sync URL → psycopg2 needed at migration time
     "psycopg2-binary>=2.9.12",
     "pydantic-settings>=2.14.2",
     "pyjwt>=2.15.0",
-    "pytest>=9.1.1",
-    "pytest-asyncio>=1.4.0",
-    "pytest-cov>=7.1.0",
-    "pytest-env>=1.7.0",
-    "pytest-mock>=3.15.1",
     "python-dotenv>=1.2.2",
-    "python-json-logger>=4.1.0",
     "python-magic>=0.4.27",
     "python-multipart>=0.0.32",
     "redis>=8.1.0",
-    "ruff>=0.16.0",
     "sqlalchemy>=2.0.51",
     "sqlalchemy-utils>=0.42.1",
     "uvicorn[standard]>=0.51.0",
 ]
+
 [tool.pytest.ini_options]
 env_files = [".env.test"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 asyncio_default_test_loop_scope = "function"
-# Отключаем автоматический параллельный запуск, если он включён
 addopts = "-p no:cacheprovider"
 markers = [
     "integration: real-DB tests, no savepoint isolation",
@@ -44,4 +36,11 @@ markers = [
 [dependency-groups]
 dev = [
     "fakeredis>=2.38.0",
+    "httpx>=0.28.1",
+    "pytest>=9.1.1",
+    "pytest-asyncio>=1.4.0",
+    "pytest-cov>=7.1.0",
+    "pytest-env>=1.7.0",
+    "pytest-mock>=3.15.1",
+    "ruff>=0.16.0",
 ]
