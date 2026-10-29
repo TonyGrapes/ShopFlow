@@ -5,9 +5,11 @@
 RBAC: require_roles(ADMIN, MODERATOR) — на уровне роутера.
 """
 import logging
-from typing import Optional
 
-from app.api.v1.deps import User, require_roles
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.v1.deps import require_roles
 from app.db.enum import OrderStatus, UserRole
 from app.db.session import get_db
 from app.schemas.common import Paginated
@@ -17,8 +19,6 @@ from app.schemas.order import (
     OrderStatusUpdate,
 )
 from app.services import order_service
-from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 router = APIRouter(
@@ -36,8 +36,8 @@ router = APIRouter(
 async def list_all_orders(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    status_filter: Optional[OrderStatus] = Query(None, alias="status"),
-    user_id: Optional[int] = Query(None, ge=1),
+    status_filter: OrderStatus | None = Query(None, alias="status"),
+    user_id: int | None = Query(None, ge=1),
     db: AsyncSession = Depends(get_db),
 ):
     """

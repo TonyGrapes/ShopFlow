@@ -7,12 +7,13 @@ CRUD адресов доставки.
 """
 import logging
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.v1.deps import User, get_current_active_user
 from app.db.session import get_db
 from app.schemas.address import AddressCreate, AddressResponse, AddressUpdate
 from app.services import address_service
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/addresses", tags=["addresses"])

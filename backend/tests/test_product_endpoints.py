@@ -17,12 +17,13 @@ API-тесты эндпоинтов /api/v1/products.
 - product      — готовый товар
 - mock_storage — мок MinioStorage с AsyncMock-методами
 """
-import io
+from datetime import UTC
 from decimal import Decimal
 
 import pytest
-from app.models.product import Product
 from sqlalchemy import select
+
+from app.models.product import Product
 
 # ============================================================
 #  GET /api/v1/products — список
@@ -85,9 +86,9 @@ class TestListProductsEndpoint:
     @pytest.mark.asyncio
     async def test_list_products_filters_deleted(self, client, db_session, product):
         """Удалённые товары не попадают в список."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        product.deleted_at = datetime.now(timezone.utc)
+        product.deleted_at = datetime.now(UTC)
         await db_session.flush()
 
         response = await client.get("/api/v1/products")
@@ -126,9 +127,9 @@ class TestGetProductEndpoint:
         self, client, db_session, product: Product
     ):
         """Удалённый товар недоступен."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
-        product.deleted_at = datetime.now(timezone.utc)
+        product.deleted_at = datetime.now(UTC)
         await db_session.flush()
 
         response = await client.get(f"/api/v1/products/{product.id}")
@@ -717,7 +718,7 @@ class TestCreateProductDuplicateName:
         self, client, db_session, category, admin_headers
     ):
         """Soft-deleted товар освобождает имя (partial index)."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         from app.models.product import Product
 
@@ -735,7 +736,7 @@ class TestCreateProductDuplicateName:
 
         # Soft delete
         product = await db_session.get(Product, pid)
-        product.deleted_at = datetime.now(timezone.utc)
+        product.deleted_at = datetime.now(UTC)
         await db_session.flush()
 
         # Повторное создание с тем же именем — должно пройти

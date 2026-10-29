@@ -2,6 +2,9 @@
 from decimal import Decimal
 
 import pytest
+from fastapi import HTTPException
+from pydantic import ValidationError
+
 from app.db.enum import ProductStatus
 from app.models.product import Product, ProductImage
 from app.schemas.product import ProductCreate
@@ -10,8 +13,6 @@ from app.services.product_service import (
     serialize_product,
     serialize_product_list_item,
 )
-from fastapi import HTTPException
-from pydantic import ValidationError
 
 
 def money(value: str = "100.00") -> Decimal:

@@ -6,12 +6,13 @@ RBAC: require_roles(ADMIN, MODERATOR) — на уровне роутера.
 """
 import logging
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.v1.deps import require_roles
 from app.db.enum import UserRole
 from app.db.session import get_db
 from app.services import review_service
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 router = APIRouter(

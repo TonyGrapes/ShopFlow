@@ -11,12 +11,11 @@ HTTP-тесты /api/v1/orders.
 from decimal import Decimal
 
 import pytest
-from app.db.enum import OrderStatus, PaymentMethod
+from sqlalchemy import select
+
+from app.db.enum import OrderStatus
 from app.models.cart_item import CartItem
 from app.models.order import Order
-from app.models.order_item import OrderItem
-from app.models.payment import Payment
-from sqlalchemy import select
 
 # ============================================================
 #  POST /orders

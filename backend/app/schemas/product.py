@@ -1,5 +1,6 @@
 # app/schemas/product.py
 from datetime import datetime
+
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.db.enum import ProductStatus

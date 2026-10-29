@@ -1,8 +1,7 @@
 # app/services/product_service.py
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import List, Optional, Tuple
 
 from fastapi import HTTPException, status
 from sqlalchemy import asc, desc, func, select
@@ -34,14 +33,14 @@ async def list_products(
     db: AsyncSession,
     page: int = 1,
     page_size: int = 20,
-    category_id: Optional[int] = None,
-    min_cost: Optional[Decimal] = None,
-    max_cost: Optional[Decimal] = None,
-    status: Optional[ProductStatus] = None,
+    category_id: int | None = None,
+    min_cost: Decimal | None = None,
+    max_cost: Decimal | None = None,
+    status: ProductStatus | None = None,
     sort_by: str = "id",
     sort_order: str = "asc",
     include_deleted: bool = False,      # ← НОВОЕ
-) -> Tuple[List[Product], int]:
+) -> tuple[list[Product], int]:
     base_query = select(Product)
     if not include_deleted:
         base_query = base_query.where(Product.deleted_at.is_(None))
@@ -143,7 +142,7 @@ def _is_active_name_conflict(exc: IntegrityError) -> bool:
 
 # ---------- CRUD ----------
 
-async def get_product(db: AsyncSession, product_id: int) -> Optional[Product]:
+async def get_product(db: AsyncSession, product_id: int) -> Product | None:
     """Товар по ID. Фильтр удалённых + selectinload связей."""
     result = await db.execute(
         select(Product)
@@ -176,7 +175,10 @@ async def create_product(db: AsyncSession, data: ProductCreate) -> Product:
     except IntegrityError as exc:
 
         if _is_active_name_conflict(exc):
-            raise ConflictError(f"Product with name '{data.name}' already exists", code="name_taken") from exc
+            raise ConflictError(
+                f"Product with name '{data.name}' already exists",
+                code="name_taken"
+                ) from exc
 
         # Не unique-violation или другой constraint — не наша ответственность
         logger.exception("Unexpected IntegrityError on create_product")
@@ -187,7 +189,7 @@ async def create_product(db: AsyncSession, data: ProductCreate) -> Product:
 
 async def update_product(
     db: AsyncSession, product_id: int, data: ProductUpdate
-) -> Optional[Product]:
+) -> Product | None:
     """
     PATCH.
 
@@ -216,7 +218,10 @@ async def update_product(
     except IntegrityError as exc:
         if _is_active_name_conflict(exc):
             new_name = update_data.get("name") or "existing"
-            raise ConflictError(f"Product with name '{new_name}' already exists", code="name_taken") from exc
+            raise ConflictError(
+                f"Product with name '{new_name}' already exists",
+                code="name_taken",
+                ) from exc
         logger.exception("Unexpected IntegrityError on update_product")
         raise
 
@@ -234,6 +239,6 @@ async def delete_product(db: AsyncSession, product_id: int) -> bool:
     if product is None:
         return False
 
-    product.deleted_at = datetime.now(timezone.utc)
+    product.deleted_at = datetime.now(UTC)
     await db.flush()
     return True

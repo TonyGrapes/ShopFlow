@@ -8,7 +8,9 @@
 - Публичный идентификатор заказа — public_id (UUID).
 """
 import logging
-from typing import Optional
+
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import User, get_current_active_user
 from app.core.exceptions import ValidationError
@@ -22,8 +24,6 @@ from app.schemas.order import (
 )
 from app.schemas.payment import PaymentRequest, PaymentResponse
 from app.services import order_service, payment_service
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -73,7 +73,7 @@ async def create_order(
 async def list_my_orders(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    status_filter: Optional[OrderStatus] = Query(None, alias="status"),
+    status_filter: OrderStatus | None = Query(None, alias="status"),
     current: User = Depends(get_current_active_user),
     db: AsyncSession = Depends(get_db),
 ):

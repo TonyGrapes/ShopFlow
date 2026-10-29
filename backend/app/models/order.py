@@ -1,7 +1,7 @@
 # app/models/order.py
 import uuid
 from decimal import Decimal
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     BigInteger,
@@ -56,13 +56,13 @@ class Order(Base, TimeStampMixin):
 
     # ✅ Snapshot промокода: код, а не FK.
     #    Аудит + защита от удаления промокода.
-    promo_code: Mapped[Optional[str]] = mapped_column(
+    promo_code: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )
 
     # ✅ Скидка. NULL = «скидки не было», не 0.00.
-    discount_amount: Mapped[Optional[Decimal]] = mapped_column(
+    discount_amount: Mapped[Decimal | None] = mapped_column(
         Numeric(10, 2),
         nullable=True,
     )
@@ -91,11 +91,11 @@ class Order(Base, TimeStampMixin):
     )
     payments: Mapped[list["Payment"]] = relationship(back_populates="order")
 
-    idempotency_key: Mapped[Optional[str]] = mapped_column(
+    idempotency_key: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )
-    idempotency_body_hash: Mapped[Optional[str]] = mapped_column(
+    idempotency_body_hash: Mapped[str | None] = mapped_column(
         Text,
         nullable=True,
     )

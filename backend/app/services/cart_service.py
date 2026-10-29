@@ -15,9 +15,8 @@
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Optional
 
 from redis.asyncio import Redis
 from sqlalchemy import delete, func, select
@@ -123,7 +122,7 @@ class GuestCartStore:
         """
         cart = await self.get(session_id)
 
-        now_iso = datetime.now(timezone.utc).isoformat()
+        now_iso = datetime.now(UTC).isoformat()
         existing = next(
             (it for it in cart.items if it.product_id == product_id), None
         )
@@ -170,14 +169,14 @@ class GuestCartStore:
                 existing.quantity = quantity
             # если позиции нет — ничего не делаем
 
-        cart.updated_at = datetime.now(timezone.utc).isoformat()
+        cart.updated_at = datetime.now(UTC).isoformat()
         await self._save(session_id, cart)
         return cart
 
     async def remove_item(self, session_id: str, product_id: int) -> GuestCart:
         cart = await self.get(session_id)
         cart.items = [it for it in cart.items if it.product_id != product_id]
-        cart.updated_at = datetime.now(timezone.utc).isoformat()
+        cart.updated_at = datetime.now(UTC).isoformat()
         await self._save(session_id, cart)
         return cart
 
@@ -200,7 +199,7 @@ class GuestCartStore:
 
 async def get_available_product(
     db: AsyncSession, product_id: int
-) -> Optional[Product]:
+) -> Product | None:
     """Возвращает продукт, если он существует и не удалён."""
     product = await db.get(Product, product_id)
     if product is None or product.deleted_at is not None:

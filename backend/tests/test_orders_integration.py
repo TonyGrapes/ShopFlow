@@ -9,6 +9,15 @@ from decimal import Decimal
 
 import pytest
 import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.pool import NullPool
+
 from app.core.config import get_settings
 from app.core.security import create_access_token, hash_password
 from app.db.base import Base
@@ -19,14 +28,6 @@ from app.models.cart_item import CartItem
 from app.models.category import Category
 from app.models.product import Product
 from app.models.user import User as UserModel
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select, text
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
-from sqlalchemy.pool import NullPool
 
 
 @pytest_asyncio.fixture(scope="function")

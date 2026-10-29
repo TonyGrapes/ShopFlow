@@ -9,11 +9,11 @@
 - идемпотентность set-default;
 - инвариант «не больше одного дефолтного адреса у юзера».
 """
-from datetime import datetime, timezone
 
 import pytest
-from app.models.address import Address
 from sqlalchemy import select
+
+from app.models.address import Address
 
 
 class TestCreateAddress:

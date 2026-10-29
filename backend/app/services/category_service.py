@@ -14,7 +14,6 @@
 """
 import logging
 import re
-from typing import Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy import func, select, text
@@ -105,7 +104,10 @@ async def create_category(
         await db.flush()
     except IntegrityError as exc:
         if _is_path_conflict(exc):
-            raise ConflictError("category name taken under parent", code="category_name_taken") from exc
+            raise ConflictError(
+                "category name taken under parent",
+                code="category_name_taken",
+                ) from exc
         logger.exception("Unexpected IntegrityError on create_category")
         raise
 
@@ -119,7 +121,7 @@ async def create_category(
 
 async def get_category(
     db: AsyncSession, category_id: int
-) -> Optional[Category]:
+) -> Category | None:
     return await db.get(Category, category_id)
 
 
@@ -168,7 +170,7 @@ async def get_category_tree(db: AsyncSession) -> list[dict]:
 
 async def update_category(
     db: AsyncSession, category_id: int, data: CategoryUpdate
-) -> Optional[Category]:
+) -> Category | None:
     """
     PATCH.
 
@@ -198,7 +200,7 @@ async def update_category(
 
 
 async def _move_category(
-    db: AsyncSession, category: Category, new_parent_id: Optional[int]
+    db: AsyncSession, category: Category, new_parent_id: int | None
 ) -> None:
     """
     Меняет parent_id и каскадно пересчитывает path.
@@ -264,7 +266,8 @@ async def _move_category(
             text("""
                 UPDATE categories
                 SET path = CAST(
-                    CAST(:new_path AS text) || '.' || subpath(path, nlevel(CAST(:old_path AS ltree)))::text
+                    CAST(:new_path AS text) || '.' 
+                    || subpath(path, nlevel(CAST(:old_path AS ltree)))::text
                 AS ltree
             )
                 WHERE path <@ CAST(:old_path AS ltree) AND id != :cid   
@@ -303,7 +306,9 @@ async def delete_category(db: AsyncSession, category_id: int) -> bool:
         )
     )).scalar_one()
     if has_children > 0:
-        raise ConflictError("Cannot delete category with subcategories", code="category_has_children")
+        raise ConflictError(
+            "Cannot delete category with subcategories", code="category_has_children"
+            )
 
     # Товары (включая soft-deleted — FK RESTRICT не даст удалить)
     has_products = (await db.execute(

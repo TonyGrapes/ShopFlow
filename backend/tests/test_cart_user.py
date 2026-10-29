@@ -10,13 +10,10 @@
 - лимит позиций (GUEST_CART_MAX_ITEMS применяется и к юзеру);
 - изоляцию корзин разных юзеров.
 """
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
-
-from app.core.config import get_settings
-from app.models.product import Product
 
 
 class TestUserCartAdd:
@@ -65,7 +62,7 @@ class TestUserCartAdd:
     async def test_add_soft_deleted_product_404(
         self, cart_client, db_session, product, auth_headers
     ):
-        product.deleted_at = datetime.now(timezone.utc)
+        product.deleted_at = datetime.now(UTC)
         await db_session.flush()
 
         response = await cart_client.post(
@@ -209,7 +206,7 @@ class TestUserCartSoftDeleted:
             json={"product_id": product.id, "quantity": 1},
             headers=auth_headers,
         )
-        product.deleted_at = datetime.now(timezone.utc)
+        product.deleted_at = datetime.now(UTC)
         await db_session.flush()
 
         response = await cart_client.get(

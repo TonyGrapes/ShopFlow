@@ -1,13 +1,13 @@
 # app/services/storage_service.py
 import asyncio
+import json
 import logging
 import uuid
-import json
 from abc import ABC, abstractmethod
 from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 from minio import Minio
 from minio.error import S3Error
@@ -25,7 +25,7 @@ _PUBLIC_READ_POLICY = {
             "Effect": "Allow",
             "Principal": {"AWS": ["*"]},
             "Action": ["s3:GetObject"],
-            "Resource": [f"arn:aws:s3:::{{bucket}}/*"],
+            "Resource": ["arn:aws:s3:::{bucket}/*"],
         }
     ],
 }
@@ -60,7 +60,7 @@ class BaseStorage(ABC):
     def ensure_bucket(self) -> None: ...
 
     @abstractmethod
-    async def get_object_info(self, key: str) -> Optional[Dict[str, Any]]: ...
+    async def get_object_info(self, key: str) -> dict[str, Any] | None: ...
 
 
 class MinioStorage(BaseStorage):
@@ -156,7 +156,7 @@ class MinioStorage(BaseStorage):
         scheme = "https" if self._secure else "http"
         return f"{scheme}://{self._public_endpoint}/{self._bucket}/{key}"
 
-    async def get_object_info(self, key: str) -> Optional[Dict[str, Any]]:
+    async def get_object_info(self, key: str) -> dict[str, Any] | None:
         try:
             stat = await asyncio.to_thread(self._client.stat_object, self._bucket, key)
             return {

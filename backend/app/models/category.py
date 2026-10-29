@@ -42,7 +42,7 @@ class Category(TimeStampMixin, Base):
         nullable=False
     )
 
-    parent_id: Mapped[Optional[int]] = mapped_column(
+    parent_id: Mapped[int | None] = mapped_column(
         ForeignKey("categories.id", ondelete="RESTRICT"),
         nullable=True,
     )

@@ -11,7 +11,7 @@ import asyncio
 import sys
 import traceback
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
@@ -28,7 +28,7 @@ from app.db.session import get_engine
 
 
 def now():
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def dummy_value(col, created_ids):

@@ -3,14 +3,13 @@ HTTP-тесты промокодов:
 - POST /cart/apply-promo (preview);
 - POST /orders с promo_code.
 """
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 import pytest
-from app.db.enum import DiscountType, OrderStatus
-from app.models.order import Order
+
+from app.db.enum import DiscountType
 from app.models.promo_code import PromoCode
-from sqlalchemy import select
 
 # ============================================================
 #  POST /cart/apply-promo — preview
@@ -104,7 +103,7 @@ class TestApplyPromoPreview:
     async def test_preview_expired_422(
         self, client, auth_headers, cart_with_one_item, db_session
     ):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         p = PromoCode(
             code="EXPIRED",
             discount_type=DiscountType.PERCENTAGE,
@@ -129,7 +128,7 @@ class TestApplyPromoPreview:
         self, client, auth_headers, cart_with_one_item, db_session
     ):
         """Корзина 2000.00, min 5000 → отказ."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         p = PromoCode(
             code="MIN5000",
             discount_type=DiscountType.PERCENTAGE,
@@ -261,7 +260,7 @@ class TestCreateOrderWithPromo:
     async def test_order_expired_promo_422(
         self, client, auth_headers, address, cart_with_one_item, db_session
     ):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         p = PromoCode(
             code="EXPIRED2",
             discount_type=DiscountType.PERCENTAGE,
@@ -286,7 +285,7 @@ class TestCreateOrderWithPromo:
         self, client, auth_headers, address, cart_with_one_item, db_session
     ):
         """Промокод с исчерпанным лимитом → 422 max_uses_exceeded."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         p = PromoCode(
             code="EXHAUSTED",
             discount_type=DiscountType.PERCENTAGE,
@@ -342,7 +341,7 @@ class TestCreateOrderWithPromo:
         self, client, auth_headers, address, cart_with_one_item, db_session
     ):
         """Промокод 100% → discount=subtotal=2000, total=0, не 500."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         p = PromoCode(
             code="MAX100",
             discount_type=DiscountType.PERCENTAGE,

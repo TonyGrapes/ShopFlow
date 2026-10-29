@@ -2,11 +2,8 @@
 """
 Тесты кэша каталога: hit/miss, инвалидация, независимость ключей, X-Cache.
 """
-from decimal import Decimal
 
 import pytest
-
-from app.models.product import Product
 
 
 class TestXCacheHeader:

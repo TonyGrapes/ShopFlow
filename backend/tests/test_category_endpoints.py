@@ -14,11 +14,9 @@ HTTP-тесты /api/v1/categories и /api/v1/admin/categories.
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import select
 
 from app.models.category import Category
 from app.models.product import Product
-
 
 # ============================================================
 #  GET /categories — публичный
@@ -294,9 +292,7 @@ class TestDeleteCategoryEndpoint:
         self, client, db_session, admin_headers, category_grandchild
     ):
         """У категории есть товар → 409."""
-        from decimal import Decimal
 
-        from app.models.product import Product
 
         db_session.add(Product(
             name="Test Product",

@@ -7,10 +7,9 @@ OrderListItem — облегчённая версия без items/payments (д�
 subtotal — computed field, не хранится в БД.
 """
 from datetime import datetime
-from decimal import Decimal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, computed_field
+from pydantic import BaseModel, ConfigDict, Field
 
 from app.db.enum import OrderStatus, ProductStatus
 from app.schemas.address import AddressBrief

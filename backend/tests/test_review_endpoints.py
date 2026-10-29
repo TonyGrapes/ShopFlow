@@ -7,12 +7,11 @@ HTTP-тесты отзывов.
 - DELETE /reviews/{public_id}: soft-delete, ownership (404 чужой);
 - DELETE /admin/reviews/{public_id}: RBAC, soft-delete любого.
 """
-from datetime import datetime, timezone
-from decimal import Decimal
+from datetime import UTC, datetime
 
 import pytest
+
 from app.models.review import Review
-from sqlalchemy import select
 
 # ============================================================
 #  GET /products/{id}/reviews
@@ -48,7 +47,7 @@ class TestListReviewsEndpoint:
     async def test_soft_deleted_excluded(
         self, client, db_session, product, review
     ):
-        review.deleted_at = datetime.now(timezone.utc)
+        review.deleted_at = datetime.now(UTC)
         await db_session.flush()
 
         response = await client.get(f"/api/v1/products/{product.id}/reviews")
@@ -228,9 +227,10 @@ class TestDeleteOwnReviewEndpoint:
         (auth_headers).
         """
         from decimal import Decimal as D
+
+        from app.db.enum import OrderStatus
         from app.models.order import Order
         from app.models.order_item import OrderItem
-        from app.db.enum import OrderStatus
 
         o = Order(
             user_id=admin_user.id, total=D("1000.00"),

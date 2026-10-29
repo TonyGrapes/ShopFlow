@@ -15,7 +15,7 @@ Reason'ы:
 - max_uses_exceeded  — used_count >= max_uses (только reserve)
 """
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 
 from fastapi import HTTPException, status
@@ -52,7 +52,7 @@ async def validate_and_calculate(
     if promo is None or not promo.is_active:
         _raise_invalid(code, "not_found")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if promo.valid_from > now:
         _raise_invalid(code, "not_yet_active")
     if promo.valid_until < now:

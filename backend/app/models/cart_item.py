@@ -1,13 +1,22 @@
-from sqlalchemy import BigInteger,Integer, Index, Text, Numeric, ForeignKey, CheckConstraint, UniqueConstraint
-from sqlalchemy.orm import Mapped, mapped_column, relationship
-from typing import TYPE_CHECKING
 from decimal import Decimal
+from typing import TYPE_CHECKING
+
+from sqlalchemy import (
+    BigInteger,
+    CheckConstraint,
+    ForeignKey,
+    Index,
+    Integer,
+    Numeric,
+    UniqueConstraint,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimeStampMixin
 
 if TYPE_CHECKING:
-    from app.models.user import User
     from app.models.product import Product
+    from app.models.user import User
 
 
 class CartItem(TimeStampMixin, Base):

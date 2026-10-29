@@ -18,9 +18,8 @@
 - order canceled/shipped/delivered → 422
 """
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
-from fastapi import HTTPException, status
 from sqlalchemy import select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -109,7 +108,7 @@ async def process_payment(
         )
 
     # 6. Payment INSERT
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payment = Payment(
         order_id=order.id,
         amount=order.total,

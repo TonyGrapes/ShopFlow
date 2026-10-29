@@ -8,8 +8,8 @@ FastAPI-зависимости.
 """
 import logging
 import secrets
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Callable
 
 import jwt
 from fastapi import Depends, HTTPException, Query, Request, Response, status
@@ -72,7 +72,7 @@ async def get_current_active_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Access token expired",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from None
     except jwt.InvalidTokenError as e:
         # ✅ SEC-002: детали pyjwt — в лог, клиенту — нейтральное сообщение.
         #    Утечка текста исключения = раскрытие реализации + oracle
@@ -84,7 +84,7 @@ async def get_current_active_user(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid access token",
             headers={"WWW-Authenticate": "Bearer"},
-        )
+        ) from None
 
     public_id = payload["sub"]
     result = await db.execute(
@@ -242,7 +242,7 @@ async def require_deleted_access(
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
             detail="include_deleted requires admin or moderator role",
-        )
+        ) from None
 
     if user.role not in (UserRole.ADMIN, UserRole.MODERATOR):
         raise HTTPException(

@@ -9,10 +9,13 @@
 - state machine: pending → completed/failed, терминальные — ошибка;
 - get_refund_by_public_id, list_refunds_for_payment.
 """
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
+from fastapi import HTTPException
+from sqlalchemy import select
+
 from app.core.exceptions import ConflictError, ValidationError
 from app.db.enum import PaymentStatus, RefundStatus
 from app.models.payment import Payment
@@ -20,8 +23,6 @@ from app.models.refund import Refund
 from app.schemas.refund import RefundCreate
 from app.services import refund_service
 from app.services.refund_service import validate_refund_transition
-from fastapi import HTTPException
-from sqlalchemy import select
 
 # ============================================================
 #  create_refund — happy path
@@ -164,7 +165,7 @@ class TestCreateRefundValidation:
             currency="RUB", payment_method="card",
             status=PaymentStatus.COMPLETED,
             external_id="test-payment-refund-2",
-            paid_at=datetime.now(timezone.utc),
+            paid_at=datetime.now(UTC),
         )
         db_session.add(p2)
         await db_session.flush()

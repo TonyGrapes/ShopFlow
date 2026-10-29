@@ -15,6 +15,11 @@ from types import SimpleNamespace
 import fakeredis.aioredis
 import pytest
 import pytest_asyncio
+from httpx import ASGITransport, AsyncClient
+from sqlalchemy import event, text
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.pool import NullPool
+
 from app.api.v1.deps import get_cache_service, get_guest_cart_store
 from app.core.redis import get_redis
 from app.core.security import create_access_token, hash_password
@@ -28,10 +33,6 @@ from app.models.user import User as UserModel
 from app.services.cache_service import CacheService
 from app.services.cart_service import GuestCartStore
 from app.services.storage_service import MinioStorage, get_storage
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy import event, text
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.pool import NullPool
 
 TEST_DATABASE_URL = (
     f"postgresql+asyncpg://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}"
@@ -455,6 +456,8 @@ async def cart_client(db_session, mock_storage, mock_cache, real_guest_store, fa
 
 # tests/conftest.py — добавить в конец
 
+from datetime import UTC
+
 from app.db.enum import OrderStatus, PaymentMethod, PaymentStatus
 from app.models.address import Address
 from app.models.cart_item import CartItem
@@ -595,7 +598,7 @@ async def paid_order(
     product,
 ) -> Order:
     """Заказ в статусе paid с одним Payment (completed)."""
-    from datetime import datetime, timezone
+    from datetime import datetime
     from decimal import Decimal
 
     o = Order(
@@ -623,7 +626,7 @@ async def paid_order(
         payment_method=PaymentMethod.CARD,
         status=PaymentStatus.COMPLETED,
         external_id="test-external-paid-1",
-        paid_at=datetime.now(timezone.utc),
+        paid_at=datetime.now(UTC),
     )
     db_session.add(p)
     await db_session.flush()
@@ -631,7 +634,7 @@ async def paid_order(
     return o
 
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timedelta
 
 from app.db.enum import DiscountType
 from app.models.promo_code import PromoCode
@@ -644,7 +647,7 @@ async def promo_code(db_session: AsyncSession) -> PromoCode:
 
     Валиден «сейчас» — valid_from в прошлом, valid_until в будущем.
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     p = PromoCode(
         code="SUMMER10",
         discount_type=DiscountType.PERCENTAGE,
@@ -665,7 +668,7 @@ async def promo_code(db_session: AsyncSession) -> PromoCode:
 @pytest_asyncio.fixture
 async def promo_code_fixed(db_session: AsyncSession) -> PromoCode:
     """Фиксированный промокод на 500 ₽."""
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     p = PromoCode(
         code="FIX500",
         discount_type=DiscountType.FIXED,
@@ -682,9 +685,7 @@ async def promo_code_fixed(db_session: AsyncSession) -> PromoCode:
     await db_session.refresh(p)
     return p
 
-from app.db.enum import OrderStatus
 from app.models.order import Order
-from app.models.order_item import OrderItem
 from app.models.review import Review
 
 
@@ -750,8 +751,9 @@ async def review(
     return r
 
 
-from app.models.category import Category
 from sqlalchemy_utils import Ltree
+
+from app.models.category import Category
 
 # ============ Category fixtures ============
 
@@ -833,7 +835,7 @@ async def payment_for_refund(
     который уже paid. Здесь нам нужен просто completed payment
     с суммой 1000.00.
     """
-    from datetime import datetime, timezone
+    from datetime import datetime
     from decimal import Decimal
 
     from app.db.enum import OrderStatus
@@ -862,7 +864,7 @@ async def payment_for_refund(
         payment_method=PaymentMethod.CARD,
         status=PaymentStatus.COMPLETED,
         external_id="test-payment-refund-1",
-        paid_at=datetime.now(timezone.utc),
+        paid_at=datetime.now(UTC),
     )
     db_session.add(p)
     await db_session.flush()
@@ -876,7 +878,7 @@ async def completed_refund(
     payment_for_refund: Payment,
 ) -> Refund:
     """Готовый completed-возврат на 300 ₽."""
-    from datetime import datetime, timezone
+    from datetime import datetime
     from decimal import Decimal
 
     r = Refund(
@@ -885,7 +887,7 @@ async def completed_refund(
         reason="customer_request",
         status=RefundStatus.COMPLETED,
         external_id="test-refund-1",
-        refunded_at=datetime.now(timezone.utc),
+        refunded_at=datetime.now(UTC),
     )
     db_session.add(r)
     await db_session.flush()

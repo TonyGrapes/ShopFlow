@@ -15,8 +15,7 @@ Reason'ы ошибок при POST:
 - 409 already_reviewed   — активный отзыв уже есть.
 """
 import logging
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from fastapi import HTTPException, status
 from sqlalchemy import asc, desc, func, select
@@ -49,7 +48,7 @@ _ACTIVE_REVIEW_CONSTRAINT = "uq_review_user_product"
 
 async def get_reviewable_order(
     db: AsyncSession, user_id: int, product_id: int
-) -> Optional[Order]:
+) -> Order | None:
     """
     Возвращает последний delivered-заказ юзера, содержащий товар.
 
@@ -237,7 +236,7 @@ async def get_product_summary(
 
 async def get_review_by_public_id(
     db: AsyncSession, public_id
-) -> Optional[Review]:
+) -> Review | None:
     """
     Возвращает отзыв по public_id, только если активный.
 
@@ -265,7 +264,7 @@ async def soft_delete_review(db: AsyncSession, review: Review) -> None:
     Партиальный UNIQUE (user_id, product_id) WHERE deleted_at IS NULL
     освобождает место — юзер может написать новый отзыв.
     """
-    review.deleted_at = datetime.now(timezone.utc)
+    review.deleted_at = datetime.now(UTC)
     await db.flush()
 
 

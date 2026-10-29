@@ -44,3 +44,36 @@ dev = [
     "pytest-mock>=3.15.1",
     "ruff>=0.16.0",
 ]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+exclude = ["alembic/versions"]           # автогенерённые миграции — не трогаем
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = [
+    "UP042",   # str, Enum → StrEnum: меняет поведение str(), рискованно
+    "UP046",   # PEP 695 generics: ручная правка, малый выигрыш
+]
+
+[tool.ruff.lint.flake8-bugbear]
+# FastAPI-идиома: Depends/Query/... в дефолтах — это НЕ function-call-in-default
+extend-immutable-calls = [
+    "fastapi.Depends",
+    "fastapi.Query",
+    "fastapi.Path",
+    "fastapi.Body",
+    "fastapi.Header",
+    "fastapi.Cookie",
+    "fastapi.Form",
+    "fastapi.File",
+    "fastapi.Security",
+]
+
+[tool.ruff.lint.per-file-ignores]
+# conftest.py: load_dotenv ДО импортов — осознанно (нужно для pydantic-settings)
+"tests/conftest.py" = ["E402"]
+# Намеренные реэкспорты для регистрации моделей в Base.metadata (Alembic)
+"app/models/__init__.py" = ["F401"]
+"app/db/__init__.py" = ["F401"]

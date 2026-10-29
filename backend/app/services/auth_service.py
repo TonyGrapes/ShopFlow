@@ -7,7 +7,7 @@
 их не откатил через get_db.rollback().
 """
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -26,7 +26,7 @@ async def revoke_family(db: AsyncSession, family_id) -> int:
     - logout (в основной сессии — commit сделает get_db);
     - внутри revoke_family_independently (со своим commit).
     """
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     result = await db.execute(
         update(RefreshToken)
         .where(

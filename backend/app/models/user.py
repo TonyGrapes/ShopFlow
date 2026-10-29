@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger, Boolean, DateTime, Index, String, Text, func, text
 from sqlalchemy import Enum as SAEnum
@@ -74,20 +74,29 @@ class User(TimeStampMixin, Base):
         server_default=UserRole.CUSTOMER.value
     )
 
-    deleted_at: Mapped[Optional[datetime]] = mapped_column(
+    deleted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True
     )
-    addresses: Mapped[list["Address"]] = relationship(back_populates="user", cascade="all, delete-orphan")
-    cart_items: Mapped[list["CartItem"]] = relationship(back_populates="user", cascade="all, delete-orphan")
-        # ✅ SCHEMA-01: НЕ "all, delete-orphan" — заказы не удаляются
-        # с юзером (история покупок). FK orders.user_id ON DELETE RESTRICT
-        # в БД дополнительно защищает. Удаление юзера с заказами
-        # запрещено на уровне БД, а не ORM.
-    orders: Mapped[list["Order"]] = relationship(back_populates="user", cascade="save-update, merge")
-    reviews: Mapped[list["Review"]] = relationship(back_populates="user", cascade="all, delete-orphan")
-    email_verifications: Mapped[list["EmailVerification"]] = relationship(back_populates="user", cascade="all, delete-orphan")
-    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(back_populates="user", cascade="all, delete-orphan")
+    addresses: Mapped[list["Address"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+        )
+    cart_items: Mapped[list["CartItem"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+        )
+        
+    orders: Mapped[list["Order"]] = relationship(
+        back_populates="user", cascade="save-update, merge"
+        )
+    reviews: Mapped[list["Review"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+        )
+    email_verifications: Mapped[list["EmailVerification"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+        )
+    refresh_tokens: Mapped[list["RefreshToken"]] = relationship(
+        back_populates="user", cascade="all, delete-orphan"
+        )
     favorites: Mapped[list["Favorite"]] = relationship(
         back_populates="user", cascade="all, delete-orphan"
     )

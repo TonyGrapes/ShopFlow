@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     BigInteger,
@@ -12,7 +12,6 @@ from sqlalchemy import (
     Integer,
     Numeric,
     UniqueConstraint,
-    func,
     text,
 )
 from sqlalchemy.dialects.postgresql import UUID
@@ -61,7 +60,7 @@ class OrderItem(TimeStampMixin, Base):
         nullable=False
     )
 
-    deleted_at: Mapped[Optional[datetime]] = mapped_column(
+    deleted_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True
     )

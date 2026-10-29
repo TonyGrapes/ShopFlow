@@ -9,10 +9,12 @@
 - get_product_summary: avg, total, distribution, пустой случай;
 - soft_delete_review: deleted_at, повторное создание возможно.
 """
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
+from fastapi import HTTPException
+
 from app.core.exceptions import ConflictError
 from app.db.enum import OrderStatus
 from app.models.order import Order
@@ -20,8 +22,6 @@ from app.models.order_item import OrderItem
 from app.models.review import Review
 from app.schemas.review import ReviewCreate
 from app.services import review_service
-from fastapi import HTTPException
-from sqlalchemy import select
 
 # ============================================================
 #  get_reviewable_order
@@ -160,7 +160,7 @@ class TestCreateReview:
     async def test_soft_deleted_product_404(
         self, db_session, verified_user, product, delivered_order
     ):
-        product.deleted_at = datetime.now(timezone.utc)
+        product.deleted_at = datetime.now(UTC)
         await db_session.flush()
 
         data = ReviewCreate(product_id=product.id, rating=5)
@@ -184,7 +184,7 @@ class TestCreateReview:
         self, db_session, verified_user, product, delivered_order, review
     ):
         """Soft-deleted отзыв → можно создать новый."""
-        review.deleted_at = datetime.now(timezone.utc)
+        review.deleted_at = datetime.now(UTC)
         await db_session.flush()
 
         data = ReviewCreate(product_id=product.id, rating=3)
@@ -214,7 +214,7 @@ class TestListProductReviews:
     async def test_excludes_soft_deleted(
         self, db_session, product, review
     ):
-        review.deleted_at = datetime.now(timezone.utc)
+        review.deleted_at = datetime.now(UTC)
         await db_session.flush()
 
         items, total = await review_service.list_product_reviews(

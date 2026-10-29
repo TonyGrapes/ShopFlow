@@ -19,8 +19,7 @@ Race condition между двумя параллельными «сделать
 """
 import logging
 
-from fastapi import HTTPException, status
-from sqlalchemy import select, update
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 

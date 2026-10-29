@@ -13,8 +13,8 @@ import hashlib
 import hmac
 import secrets
 import uuid
-from datetime import datetime, timedelta, timezone
-from typing import Any, Optional
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 import jwt
 from argon2 import PasswordHasher
@@ -83,7 +83,7 @@ def create_access_token(public_id: str) -> str:
     НЕ кладём role/email — они берутся из БД на каждом запросе.
     """
     s = get_settings()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     payload = {
         "sub": public_id,
         "type": TOKEN_TYPE_ACCESS,

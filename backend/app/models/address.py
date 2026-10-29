@@ -1,6 +1,7 @@
-from sqlalchemy import BigInteger, Boolean, String, Text, ForeignKey, Index
-from sqlalchemy.orm import Mapped, mapped_column, relationship
 from typing import TYPE_CHECKING
+
+from sqlalchemy import BigInteger, Boolean, ForeignKey, Index, Text
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base, TimeStampMixin
 
@@ -28,6 +29,9 @@ class Address(TimeStampMixin, Base):
 
     __table_args__  = (
         Index("idx_addresses_user_id", "user_id"),
-        Index("idx_one_default_address_per_user", "user_id", unique=True, postgresql_where=(is_default.is_(True))),
+        Index(
+            "idx_one_default_address_per_user", "user_id", 
+            unique=True, postgresql_where=(is_default.is_(True))
+            ),
 
     )

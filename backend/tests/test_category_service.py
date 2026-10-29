@@ -11,18 +11,18 @@
 - list_categories: сортировка по path;
 - get_category_tree: вложенность.
 """
+from datetime import UTC
 from decimal import Decimal
 
 import pytest
+from fastapi import HTTPException
+
 from app.core.exceptions import ConflictError
 from app.models.category import Category
 from app.models.product import Product
 from app.schemas.category import CategoryCreate, CategoryUpdate
 from app.services import category_service
 from app.services.category_service import _slugify
-from fastapi import HTTPException
-from sqlalchemy import select
-from sqlalchemy_utils import Ltree
 
 # ============================================================
 #  _slugify
@@ -462,14 +462,14 @@ class TestDeleteCategory:
         """
         Soft-deleted товар всё равно блокирует удаление (FK RESTRICT).
         """
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         product = Product(
             name="Deleted Laptop",
             description="Test",
             cost=Decimal("2000.00"),
             category_id=category_grandchild.id,
-            deleted_at=datetime.now(timezone.utc),
+            deleted_at=datetime.now(UTC),
         )
         db_session.add(product)
         await db_session.flush()

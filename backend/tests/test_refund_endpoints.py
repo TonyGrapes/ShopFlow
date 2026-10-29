@@ -11,14 +11,11 @@ HTTP-тесты /api/v1/admin/payments/{payment_id}/refund(s).
 - 422 для amount > remaining / invalid reason;
 - 409 для external_id conflict.
 """
-from datetime import datetime, timezone
 from decimal import Decimal
 
 import pytest
-from app.db.enum import PaymentStatus, RefundStatus
-from app.models.payment import Payment
-from app.models.refund import Refund
-from sqlalchemy import select
+
+from app.db.enum import PaymentStatus
 
 # ============================================================
 #  POST /admin/payments/{payment_id}/refund

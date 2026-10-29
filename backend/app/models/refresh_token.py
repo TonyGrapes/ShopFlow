@@ -7,7 +7,7 @@ Reuse-detection: повторное использование revoked-токе�
 """
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import BigInteger, Boolean, DateTime, ForeignKey, Index, Text, text
 from sqlalchemy.dialects.postgresql import UUID
@@ -51,7 +51,7 @@ class RefreshToken(Base, TimeStampMixin):
         nullable=False,
     )
 
-    revoked_at: Mapped[Optional[datetime]] = mapped_column(
+    revoked_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )

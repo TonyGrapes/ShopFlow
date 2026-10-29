@@ -8,7 +8,7 @@
 - DELETE /favorites/{product_id} — удалить (404 если нет);
 - Без токена — 401.
 """
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import pytest
 
@@ -72,7 +72,7 @@ class TestAddFavorite:
     async def test_add_soft_deleted_product_404(
         self, cart_client, db_session, product, auth_headers
     ):
-        product.deleted_at = datetime.now(timezone.utc)
+        product.deleted_at = datetime.now(UTC)
         await db_session.flush()
 
         response = await cart_client.post(
@@ -114,7 +114,7 @@ class TestListFavorites:
             headers=auth_headers,
         )
 
-        product.deleted_at = datetime.now(timezone.utc)
+        product.deleted_at = datetime.now(UTC)
         await db_session.flush()
 
         response = await cart_client.get(
@@ -132,12 +132,13 @@ class TestListFavorites:
         self, cart_client, db_session, category, auth_headers
     ):
         """Список отсортирован по created_at DESC (сначала новые)."""
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
         from decimal import Decimal
+
+        from sqlalchemy import select
 
         from app.models.favorite import Favorite
         from app.models.product import Product as ProductModel
-        from sqlalchemy import select
 
         p1 = ProductModel(
             name="OrderP1", description="Test",
@@ -168,7 +169,7 @@ class TestListFavorites:
         # ✅ Явно задаём created_at: p1 — раньше, p2 — позже.
         #    func.now() в одной транзакции даёт одно значение,
         #    поэтому сортировка "DESC" недетерминирована.
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         f1 = (await db_session.execute(
             select(Favorite).where(Favorite.product_id == p1.id)
         )).scalar_one()

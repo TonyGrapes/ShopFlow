@@ -9,7 +9,7 @@
 """
 import json
 import logging
-from typing import Any, Optional
+from typing import Any
 
 from redis.asyncio import Redis
 
@@ -20,7 +20,7 @@ class CacheService:
     def __init__(self, redis: Redis):
         self._redis = redis
 
-    async def get_json(self, key: str) -> Optional[Any]:
+    async def get_json(self, key: str) -> Any | None:
         """
         Читает JSON из кэша.
 

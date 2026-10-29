@@ -11,21 +11,20 @@
 - reserve_promo_use инкрементирует при наличии лимита;
 - reserve_promo_use возвращает False при исчерпанном лимите.
 """
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
+from fastapi import HTTPException
+
 from app.db.enum import DiscountType
 from app.models.promo_code import PromoCode
-from app.services import promo_service
 from app.services.promo_service import (
     _calculate_discount,
     reserve_promo_use,
     validate_and_calculate,
 )
-from fastapi import HTTPException
-from sqlalchemy import select
 
 # ============================================================
 #  _calculate_discount — чистая математика
@@ -129,7 +128,7 @@ class TestValidateAndCalculate:
 
     @pytest.mark.asyncio
     async def test_not_yet_active(self, db_session):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         p = PromoCode(
             code="FUTURE",
             discount_type=DiscountType.PERCENTAGE,
@@ -149,7 +148,7 @@ class TestValidateAndCalculate:
 
     @pytest.mark.asyncio
     async def test_expired(self, db_session):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         p = PromoCode(
             code="EXPIRED",
             discount_type=DiscountType.PERCENTAGE,
@@ -169,7 +168,7 @@ class TestValidateAndCalculate:
 
     @pytest.mark.asyncio
     async def test_min_order_amount(self, db_session):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         p = PromoCode(
             code="MIN5000",
             discount_type=DiscountType.PERCENTAGE,
@@ -193,7 +192,7 @@ class TestValidateAndCalculate:
     @pytest.mark.asyncio
     async def test_min_order_amount_exactly_equal_ok(self, db_session):
         """subtotal == min_order_amount → ok (не «строго больше»)."""
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         p = PromoCode(
             code="MIN1000",
             discount_type=DiscountType.PERCENTAGE,
@@ -232,7 +231,7 @@ class TestReservePromoUse:
 
     @pytest.mark.asyncio
     async def test_reserve_up_to_max_uses(self, db_session):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         p = PromoCode(
             code="LIMITED",
             discount_type=DiscountType.PERCENTAGE,
@@ -256,7 +255,7 @@ class TestReservePromoUse:
 
     @pytest.mark.asyncio
     async def test_reserve_already_exhausted(self, db_session):
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         p = PromoCode(
             code="EXHAUSTED",
             discount_type=DiscountType.PERCENTAGE,

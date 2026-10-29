@@ -13,9 +13,9 @@
 - ProductImageBrief.url — через validation_alias="image_url"
 - cover_url — @property в модели Product
 """
-from datetime import datetime, timezone
-from decimal import Decimal
 import types
+from datetime import UTC, datetime
+from decimal import Decimal
 
 import pytest
 from pydantic import ValidationError
@@ -29,7 +29,6 @@ from app.schemas.product import (
     ProductResponse,
     ProductUpdate,
 )
-
 
 # ===================== Вспомогательные фикстуры =====================
 
@@ -337,7 +336,7 @@ class TestProductResponse:
             category=None,
             images=[],
             status="available",
-            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
             updated_at=None,
         )
 
@@ -365,7 +364,7 @@ class TestProductResponse:
             category={"id": 10, "category_name": "Electronics"},
             images=[],
             status="available",
-            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
             updated_at=None,
         )
 
@@ -389,7 +388,7 @@ class TestProductResponse:
                 types.SimpleNamespace(id=101, url="https://cdn/img2.jpg"),
             ],
             status="available",
-            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
             updated_at=None,
         )
 
@@ -410,7 +409,7 @@ class TestProductResponse:
             category=None,
             images=[],
             status="available",
-            created_at=datetime(2026, 1, 1, tzinfo=timezone.utc),
+            created_at=datetime(2026, 1, 1, tzinfo=UTC),
             updated_at=None,
         )
 

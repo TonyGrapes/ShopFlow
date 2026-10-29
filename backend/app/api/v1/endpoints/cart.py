@@ -10,6 +10,9 @@
 """
 import logging
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.v1.deps import (
     CartOwner,
     get_cart_owner,
@@ -21,8 +24,6 @@ from app.schemas.cart import CartItemCreate, CartItemUpdate, CartResponse
 from app.schemas.promo import PromoCodePreviewRequest, PromoCodePreviewResponse
 from app.services import cart_service, promo_service
 from app.services.cart_service import GuestCartStore
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/cart", tags=["cart"])
@@ -104,13 +105,13 @@ async def add_item(
                 max_items=get_settings().GUEST_CART_MAX_ITEMS,
             )
         except ValueError as e:
-            raise HTTPException(409, str(e))
+            raise HTTPException(409, str(e)) from None
         except Exception:
             logger.exception("Redis failed on cart add")
             raise HTTPException(
                 status.HTTP_503_SERVICE_UNAVAILABLE,
                 "Cart storage unavailable",
-            )
+            ) from None
     else:
         assert owner.user_id is not None
         try:
@@ -121,9 +122,9 @@ async def add_item(
                 quantity=data.quantity,
             )
         except LookupError as e:
-            raise HTTPException(404, str(e))
+            raise HTTPException(404, str(e)) from None
         except ValueError as e:
-            raise HTTPException(409, str(e))
+            raise HTTPException(409, str(e)) from None
 
     return await _read_cart(owner, db, guest_store)
 
@@ -156,7 +157,7 @@ async def update_item(
             )
         except Exception:
             logger.exception("Redis failed on cart update")
-            raise HTTPException(503, "Cart storage unavailable")
+            raise HTTPException(503, "Cart storage unavailable") from None
     else:
         assert owner.user_id is not None
         found = await cart_service.set_user_cart_item_quantity(
@@ -252,7 +253,7 @@ async def remove_item(
             await guest_store.remove_item(owner.session_id, product_id)
         except Exception:
             logger.exception("Redis failed on cart remove")
-            raise HTTPException(503, "Cart storage unavailable")
+            raise HTTPException(503, "Cart storage unavailable") from None
     else:
         assert owner.user_id is not None
         found = await cart_service.remove_user_cart_item(

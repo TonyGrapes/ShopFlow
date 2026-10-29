@@ -15,6 +15,7 @@
 - guest-cart НЕ удаляется из Redis самим merge (это BackgroundTask после commit).
 """
 import uuid
+from datetime import UTC
 from decimal import Decimal
 
 import pytest
@@ -186,13 +187,13 @@ class TestMergeWarnings:
         self, db_session, real_guest_store, product, verified_user
     ):
         """Soft-deleted товар: warning, позиция НЕ добавляется."""
-        from datetime import datetime, timezone
+        from datetime import datetime
 
         sid = str(uuid.uuid4())
         await _prepare_guest_cart(real_guest_store, sid, product, quantity=1)
 
         # Удаляем товар после добавления в guest-cart
-        product.deleted_at = datetime.now(timezone.utc)
+        product.deleted_at = datetime.now(UTC)
         await db_session.flush()
 
         result = await merge_guest_cart_into_user(

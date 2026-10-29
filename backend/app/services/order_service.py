@@ -15,7 +15,6 @@ import hashlib
 import json
 import logging
 from decimal import Decimal
-from typing import Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy import delete, func, select
@@ -38,7 +37,6 @@ from app.schemas.order import (
     OrderListItem,
     OrderResponse,
 )
-from app.schemas.payment import PaymentResponse
 from app.services import promo_service
 from app.services.payment_service import serialize_payment
 from app.services.storage_service import get_storage
@@ -132,7 +130,7 @@ async def create_order_from_cart(
     - Без ключа → обычное поведение.
       """
     # 0. Idempotency pre-check
-    body_hash: Optional[str] = None
+    body_hash: str | None = None
     if idempotency_key is not None:
         body_hash = _hash_idempotency_body(address_id, promo_code)
         existing = await _find_existing_by_idempotency_key(
@@ -310,7 +308,7 @@ async def get_user_orders(
     user_id: int,
     page: int = 1,
     page_size: int = 20,
-    status_filter: Optional[OrderStatus] = None,
+    status_filter: OrderStatus | None = None,
 ) -> tuple[list[Order], int]:
     """
     Список заказов юзера с пагинацией и фильтром по статусу.
@@ -383,8 +381,8 @@ async def list_orders_admin(
     db: AsyncSession,
     page: int = 1,
     page_size: int = 20,
-    status_filter: Optional[OrderStatus] = None,
-    user_id: Optional[int] = None,
+    status_filter: OrderStatus | None = None,
+    user_id: int | None = None,
 ) -> tuple[list[Order], int]:
     """Админский список заказов. Без ownership-проверок."""
     base_query = select(Order)
@@ -524,7 +522,7 @@ def _hash_idempotency_body(address_id: int, promo_code: str | None) -> str:
 
 async def _find_existing_by_idempotency_key(
     db: AsyncSession, user_id: int, idempotency_key: str
-) -> Optional[Order]:
+) -> Order | None:
     result = await db.execute(
         select(Order).where(
             Order.user_id == user_id,

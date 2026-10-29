@@ -16,7 +16,7 @@ State machine:
 Reason валидация: customer_request | defective | wrong_item | other.
 """
 import logging
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 from fastapi import HTTPException, status
@@ -144,16 +144,14 @@ async def create_refund(
             extra={"reason": data.reason, "allowed": sorted(_ALLOWED_REASONS)},
         )
 
-    # 4. RACE-03: блокируем строку payment до конца транзакции.
-    #    Параллельный create_refund будет ждать этот FOR UPDATE.
-    #    После commit первого — второй получит актуальный already_refunded.
-    locked_payment = (await db.execute(
+    # 4. # RACE-03: блокируем строку payment до конца транзакции.
+    # Достаточно выполнить SELECT ... FOR UPDATE — результат не нужен,
+    # payment из identity map указывает на ту же строку.
+    await db.execute(
         select(Payment)
         .where(Payment.id == payment.id)
         .with_for_update()
-    )).scalar_one()
-    # locked_payment — тот же объект, что payment (identity map),
-    # но SQLAlchemy гарантирует, что строка в БД заблокирована.
+    )
 
     # 5. Amount <= остаток (после блокировки — согласованное состояние)
     already_refunded = await _get_refunded_sum(db, payment.id)
@@ -172,7 +170,7 @@ async def create_refund(
         )
 
     # 6. Создание Refund
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     refund = Refund(
         payment_id=payment.id,
         amount=data.amount,

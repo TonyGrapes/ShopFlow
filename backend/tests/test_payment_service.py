@@ -5,12 +5,12 @@
 from decimal import Decimal
 
 import pytest
+from sqlalchemy import select
+
 from app.core.exceptions import ConflictError, ValidationError
 from app.db.enum import OrderStatus, PaymentMethod, PaymentStatus
 from app.models.payment import Payment
-from app.services import order_service, payment_service
-from fastapi import HTTPException
-from sqlalchemy import select
+from app.services import payment_service
 
 
 class TestProcessPaymentHappy:

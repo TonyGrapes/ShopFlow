@@ -4,7 +4,6 @@ from typing import Annotated, Generic, TypeVar
 
 from pydantic import BaseModel, Field
 
-
 # ✅ Money: >= 0, максимум 10 знаков, 2 после запятой.
 # Decimal вместо float — деньги не теряют точность
 # (0.1 + 0.2 != 0.3 во float).

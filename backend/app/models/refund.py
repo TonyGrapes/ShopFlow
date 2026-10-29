@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     BigInteger,
@@ -50,7 +50,7 @@ class Refund(TimeStampMixin, Base):
         nullable=False
     )
 
-    reason: Mapped[Optional[str]] = mapped_column(
+    reason: Mapped[str | None] = mapped_column(
         Text,
         nullable=True
     )
@@ -66,12 +66,12 @@ class Refund(TimeStampMixin, Base):
         nullable=False    
     )
 
-    external_id: Mapped[Optional[str]] = mapped_column(
+    external_id: Mapped[str | None] = mapped_column(
         Text,
         nullable=True
     )
 
-    refunded_at: Mapped[Optional[datetime]] = mapped_column(
+    refunded_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True),
         nullable=True
     )

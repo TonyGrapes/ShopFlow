@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import (
     BigInteger,
@@ -78,18 +78,23 @@ class Payment(TimeStampMixin, Base):
         nullable=False
     )
 
-    external_id: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    paid_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    external_id: Mapped[str | None] = mapped_column(Text, nullable=True)
+    paid_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
 
     order: Mapped["Order"] = relationship(back_populates="payments")
-    refunds: Mapped[list["Refund"]] = relationship(back_populates="payment", cascade="all, delete-orphan")
+    refunds: Mapped[list["Refund"]] = relationship(
+        back_populates="payment", cascade="all, delete-orphan"
+        )
 
     __table_args__ = (
         CheckConstraint("amount > 0", name="chk_payments_amount_positive"),
         Index("idx_payments_order_id", "order_id"),
         Index("idx_payments_status", "status"),
         # Уникальный external_id только для не-null значений
-        Index("idx_payments_external_id", "external_id", unique=True, postgresql_where=(external_id.isnot(None))),
+        Index(
+            "idx_payments_external_id", "external_id",
+            unique=True, postgresql_where=(external_id.isnot(None))
+            ),
         Index("ix_payments_public_id", "public_id", unique=True),
     )
 

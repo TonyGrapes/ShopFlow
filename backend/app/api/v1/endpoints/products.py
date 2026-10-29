@@ -3,13 +3,24 @@ import asyncio
 import logging
 import random
 from decimal import Decimal
-from typing import Optional
 
 import magic
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    File,
+    HTTPException,
+    Query,
+    Response,
+    UploadFile,
+    status,
+)
+from sqlalchemy import update
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.api.v1.deps import (
-    User,
     get_cache_service,
-    get_current_active_user,
     require_deleted_access,
     require_roles,
 )
@@ -42,19 +53,6 @@ from app.services.storage_service import (
     get_storage,
     make_object_key,
 )
-from fastapi import (
-    APIRouter,
-    BackgroundTasks,
-    Depends,
-    File,
-    HTTPException,
-    Query,
-    Response,
-    UploadFile,
-    status,
-)
-from sqlalchemy import update
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/products", tags=["products"])
@@ -72,10 +70,10 @@ async def list_products(
     response: Response,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    category_id: Optional[int] = Query(None, description="Фильтр по категории"),
-    min_cost: Optional[Decimal] = Query(None, ge=0, description="Минимальная цена"),
-    max_cost: Optional[Decimal] = Query(None, ge=0, description="Максимальная цена"),
-    status_filter: Optional[ProductStatus] = Query(None, alias="status"),
+    category_id: int | None = Query(None, description="Фильтр по категории"),
+    min_cost: Decimal | None = Query(None, ge=0, description="Минимальная цена"),
+    max_cost: Decimal | None = Query(None, ge=0, description="Максимальная цена"),
+    status_filter: ProductStatus | None = Query(None, alias="status"),
     sort_by: str = Query("id", pattern="^(id|name|cost|created_at)$"),
     sort_order: str = Query("asc", pattern="^(asc|desc)$"),
     include_deleted: bool = Depends(require_deleted_access),
@@ -361,7 +359,7 @@ async def upload_product_image(
     try:
         key = make_object_key(file.filename, product_id=product_id)
     except ValueError as e:
-        raise HTTPException(415, str(e))
+        raise HTTPException(415, str(e)) from None
 
     try:
         await storage.upload(
@@ -369,7 +367,7 @@ async def upload_product_image(
         )
     except Exception:
         logger.exception("MinIO upload failed for key=%s", key)
-        raise HTTPException(500, "Failed to upload image")
+        raise HTTPException(500, "Failed to upload image") from None
 
     try:
         image = ProductImage(product_id=product_id, key=key)
@@ -382,7 +380,7 @@ async def upload_product_image(
             await storage.delete(key)
         except Exception:
             logger.exception("Compensation failed for key=%s", key)
-        raise HTTPException(500, "Failed to save image metadata")
+        raise HTTPException(500, "Failed to save image metadata") from None
 
     background_tasks.add_task(
         cache.delete_by_pattern,

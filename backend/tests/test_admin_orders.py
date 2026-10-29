@@ -8,9 +8,9 @@
 - смена статуса через state machine;
 - 422 на недопустимый переход.
 """
-from decimal import Decimal
 
 import pytest
+
 from app.db.enum import OrderStatus
 from app.models.order import Order
 

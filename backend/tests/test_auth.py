@@ -9,17 +9,18 @@
 - resend инвалидирует старые pending-токены.
 """
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 import jwt
 import pytest
+from sqlalchemy import select
+
 from app.core.config import get_settings
-from app.core.security import create_access_token, hash_password
+from app.core.security import create_access_token, hash_password, hash_refresh_token
 from app.db.enum import UserRole, UserStatus
 from app.models.email_verification import EmailVerification
 from app.models.refresh_token import RefreshToken
 from app.models.user import User as UserModel
-from sqlalchemy import select
 
 REGISTER_PAYLOAD = {
     "email": "new@example.com",
@@ -54,7 +55,7 @@ class TestRegister:
             select(EmailVerification).where(EmailVerification.user_id == user.id)
         )).scalar_one()
         assert verification.verified_at is None
-        assert verification.expires_at > datetime.now(timezone.utc)
+        assert verification.expires_at > datetime.now(UTC)
 
     @pytest.mark.asyncio
     async def test_register_duplicate_email_returns_409(self, client, verified_user):
@@ -176,7 +177,7 @@ class TestVerifyEmail:
 
         verification = EmailVerification(
             user_id=user.id,
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=1),
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
         )
         db_session.add(verification)
         await db_session.flush()
@@ -202,7 +203,7 @@ class TestVerifyEmail:
 
         verification = EmailVerification(
             user_id=user.id,
-            expires_at=datetime.now(timezone.utc) - timedelta(hours=1),
+            expires_at=datetime.now(UTC) - timedelta(hours=1),
         )
         db_session.add(verification)
         await db_session.flush()
@@ -232,7 +233,7 @@ class TestVerifyEmail:
 
         old = EmailVerification(
             user_id=user.id,
-            expires_at=datetime.now(timezone.utc) + timedelta(hours=24),
+            expires_at=datetime.now(UTC) + timedelta(hours=24),
         )
         db_session.add(old)
         await db_session.flush()
@@ -297,7 +298,7 @@ class TestRefreshRotation:
         assert login.status_code == 200
         s = get_settings()
         old_raw = login.cookies[s.REFRESH_COOKIE_NAME]
-        old_hash = __import__("app.core.security", fromlist=["hash_refresh_token"]).hash_refresh_token(old_raw)
+        old_hash = hash_refresh_token(old_raw)
 
         # refresh
         refresh = await client.post("/api/v1/auth/refresh")
@@ -309,7 +310,7 @@ class TestRefreshRotation:
         old_record = (await db_session.execute(
             select(RefreshToken).where(RefreshToken.token_hash == old_hash)
         )).scalar_one()
-        new_hash = __import__("app.core.security", fromlist=["hash_refresh_token"]).hash_refresh_token(new_raw)
+        new_hash = hash_refresh_token(new_raw)
         new_record = (await db_session.execute(
             select(RefreshToken).where(RefreshToken.token_hash == new_hash)
         )).scalar_one()
@@ -459,7 +460,7 @@ class TestExpiredAccess:
     async def test_expired_access_401_with_detail(self, client, verified_user):
         """✅ Протухший access → 401 + корректный detail."""
         s = get_settings()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         expired_token = jwt.encode(
             {
                 "sub": str(verified_user.public_id),
@@ -518,24 +519,7 @@ class TestRequireRoles:
         response = await client.post("/api/v1/products", json=payload, headers=seller_headers)
         assert response.status_code == 201
 
-        @pytest.mark.asyncio
-        async def test_status_and_verified_flag_never_diverge(self, db_session, verified_user):
-            """
-            ✅ Инвариант: ACTIVE ⟺ is_email_verified (в нашей модели).
-            Проверяем на конкретных кейсах — если появятся другие статусы
-            (например, ACTIVE+unverified для OAuth), тест надо будет обновить.
-            """
-        # pending + unverified
-            u1 = UserModel(..., status=UserStatus.PENDING, is_email_verified=False)
-        # banned + verified — допустимо
-            u2 = UserModel(..., status=UserStatus.BANNED, is_email_verified=True)
-        # active + verified — канон
-            u3 = UserModel(..., status=UserStatus.ACTIVE, is_email_verified=True)
-        # active + unverified — сомнительно, но возможно (если появятся внешние логины)
-        # пока НЕ создаём — этот тест документирует, что такой комбинации нет
-    
-    # tests/test_auth.py — в классе TestRequireRoles
-
+        
     @pytest.mark.asyncio
     async def test_moderator_can_create_product(self, client, category, db_session):
         """
@@ -544,7 +528,7 @@ class TestRequireRoles:
         Список ролей для write-операций каталога:
         ADMIN, MODERATOR, SELLER. Проверяем все три (см. соседние тесты).
         """
-        from app.core.security import create_access_token, hash_password
+        from app.core.security import hash_password
         from app.db.enum import UserRole, UserStatus
         from app.models.user import User as UserModel
 
@@ -601,13 +585,14 @@ class TestInvalidTokenNeutralDetail:
     async def test_expired_token_still_says_expired(self, client, verified_user):
         """Просроченный токен → detail 'expired' (не утекает, но полезно)."""
         import uuid
-        from datetime import datetime, timedelta, timezone
+        from datetime import datetime, timedelta
 
         import jwt
+
         from app.core.config import get_settings
 
         s = get_settings()
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         expired = jwt.encode(
             {
                 "sub": str(verified_user.public_id),

@@ -5,9 +5,13 @@ ownership-фильтрация.
 
 Сервисный уровень — быстрые тесты без HTTP overhead.
 """
+from datetime import UTC
 from decimal import Decimal
 
 import pytest
+from fastapi import HTTPException
+from sqlalchemy import select
+
 from app.core.exceptions import ValidationError
 from app.db.enum import OrderStatus, ProductStatus
 from app.models.cart_item import CartItem
@@ -15,8 +19,6 @@ from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.services import order_service
 from app.services.order_service import validate_transition
-from fastapi import HTTPException
-from sqlalchemy import select
 
 
 class TestCreateOrderFromCartHappyPath:
@@ -118,8 +120,8 @@ class TestCreateOrderFromCartValidation:
         soft-deleted, поэтому позиция «невидима» для юзера.
         При создании заказа — тихо пропускается.
         """
-        from datetime import datetime, timezone
-        product.deleted_at = datetime.now(timezone.utc)
+        from datetime import datetime
+        product.deleted_at = datetime.now(UTC)
         await db_session.flush()
 
         # Корзина теперь эффективно пуста → 422 empty_cart
@@ -191,7 +193,7 @@ class TestGetUserOrders:
     ):
         from decimal import Decimal
 
-        for i in range(3):
+        for _ in range(3):
             o = Order(
                 user_id=verified_user.id,
                 total=Decimal("100.00"),

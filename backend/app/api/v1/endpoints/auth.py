@@ -1,8 +1,20 @@
 # app/api/v1/endpoints/auth.py
 import logging
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from app.api.v1.deps import User, get_current_active_user, get_guest_cart_store
+from fastapi import (
+    APIRouter,
+    BackgroundTasks,
+    Depends,
+    HTTPException,
+    Request,
+    Response,
+    status,
+)
+from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.v1.deps import User, get_current_active_user
 from app.core.config import get_settings
 from app.core.redis import get_redis
 from app.core.security import (
@@ -30,17 +42,6 @@ from app.services.auth_service import (
     revoke_family_independently,
 )
 from app.services.cart_service import GuestCartStore, merge_guest_cart_into_user
-from fastapi import (
-    APIRouter,
-    BackgroundTasks,
-    Depends,
-    HTTPException,
-    Request,
-    Response,
-    status,
-)
-from sqlalchemy import select, update
-from sqlalchemy.ext.asyncio import AsyncSession
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/auth", tags=["auth"])
@@ -97,7 +98,7 @@ async def _issue_token_pair(
 
     # Refresh — opaque, в БД хеш
     raw_refresh, token_hash = generate_refresh_token()
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     record = RefreshToken(
         user_id=user.id,
         token_hash=token_hash,
@@ -156,7 +157,7 @@ async def register(data: RegisterRequest, db: AsyncSession = Depends(get_db)):
     # Токен верификации
     verification = EmailVerification(
         user_id=user.id,
-        expires_at=datetime.now(timezone.utc)
+        expires_at=datetime.now(UTC)
         + timedelta(hours=s.EMAIL_VERIFICATION_EXPIRES_HOURS),
     )
     db.add(verification)
@@ -287,7 +288,7 @@ async def refresh(
         _clear_refresh_cookie(response)
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid refresh token")
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
 
     # ✅ Reuse-detection: revoked-токен в живом запросе → компрометация семьи
     if record.revoked:
@@ -371,7 +372,7 @@ async def verify_email(token: str, db: AsyncSession = Depends(get_db)):
     )
     verification = result.scalar_one_or_none()
 
-    now = datetime.now(timezone.utc)
+    now = datetime.now(UTC)
     if verification is None or verification.verified_at is not None:
         raise HTTPException(status.HTTP_400_BAD_REQUEST, "Invalid or used token")
     if verification.expires_at <= now:
@@ -416,7 +417,7 @@ async def resend_verification(
 
     if user is not None and not user.is_email_verified:
         # ✅ Инвалидируем все pending-токены — 'действующим' остаётся только новый
-        now = datetime.now(timezone.utc)
+        now = datetime.now(UTC)
         await db.execute(
             update(EmailVerification)
             .where(

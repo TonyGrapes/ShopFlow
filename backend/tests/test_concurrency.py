@@ -8,11 +8,19 @@ Savepoint-изоляция видит одну транзакцию — race-т�
 Маркер @pytest.mark.integration — отдельный прогон (см. test_auth_integration.py).
 """
 import asyncio
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
 import pytest_asyncio
+from sqlalchemy import func, select, text
+from sqlalchemy.ext.asyncio import (
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+from sqlalchemy.pool import NullPool
+
 from app.core.config import get_settings
 from app.core.exceptions import ValidationError
 from app.core.security import hash_password
@@ -37,13 +45,6 @@ from app.models.refund import Refund
 from app.models.user import User as UserModel
 from app.schemas.refund import RefundCreate
 from app.services.refund_service import create_refund
-from sqlalchemy import func, select, text
-from sqlalchemy.ext.asyncio import (
-    AsyncSession,
-    async_sessionmaker,
-    create_async_engine,
-)
-from sqlalchemy.pool import NullPool
 
 TEST_DATABASE_URL = get_settings().database_url
 
@@ -324,7 +325,7 @@ async def test_concurrent_refunds_do_not_exceed_payment(race_factory):
             currency="RUB", payment_method=PaymentMethod.CARD,
             status=PaymentStatus.COMPLETED,
             external_id="race-refund-pay",
-            paid_at=datetime.now(timezone.utc),
+            paid_at=datetime.now(UTC),
         )
         setup.add(payment)
         await setup.flush()

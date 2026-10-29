@@ -12,8 +12,8 @@ import os
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
-from sqlalchemy.ext.asyncio import async_sessionmaker, AsyncSession, create_async_engine
+from sqlalchemy import select, text
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.core.security import hash_password
@@ -22,7 +22,6 @@ from app.db.enum import UserRole, UserStatus
 from app.main import app
 from app.models.refresh_token import RefreshToken
 from app.models.user import User as UserModel
-
 
 TEST_DATABASE_URL = (
     f"postgresql+asyncpg://{os.getenv('POSTGRES_USER')}:{os.getenv('POSTGRES_PASSWORD')}"
@@ -38,8 +37,8 @@ async def real_db_engine():
     """
     engine = create_async_engine(TEST_DATABASE_URL, echo=False, poolclass=NullPool)
     async with engine.begin() as conn:
-        await conn.execute(__import__("sqlalchemy").text('CREATE EXTENSION IF NOT EXISTS "pgcrypto"'))
-        await conn.execute(__import__("sqlalchemy").text('CREATE EXTENSION IF NOT EXISTS ltree'))
+        await conn.execute(text('CREATE EXTENSION IF NOT EXISTS "pgcrypto"'))
+        await conn.execute(text('CREATE EXTENSION IF NOT EXISTS ltree'))
         await conn.run_sync(Base.metadata.create_all)
     yield engine
     # После теста — очистка (drop_all, чтобы не мусорить)

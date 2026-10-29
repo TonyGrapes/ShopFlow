@@ -1,9 +1,9 @@
 # tests/test_cache_service.py
-import json
 
 import fakeredis.aioredis
 import pytest
 import pytest_asyncio
+
 from app.services.cache_service import CacheService
 
 

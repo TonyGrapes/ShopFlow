@@ -8,10 +8,11 @@
 - include_deleted: обходит кэш (X-Cache: BYPASS), включает deleted;
 - оба требуют write-роль (ADMIN/MODERATOR/SELLER).
 """
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
+
 from app.db.enum import ProductStatus
 from app.models.product import Product
 
@@ -68,7 +69,7 @@ class TestBulkStatusUpdate:
             name="Deleted", description="Test",
             cost=Decimal("100.00"), category_id=category.id,
             status=ProductStatus.AVAILABLE,
-            deleted_at=datetime.now(timezone.utc),
+            deleted_at=datetime.now(UTC),
         )
         db_session.add_all([active, deleted])
         await db_session.flush()
@@ -203,7 +204,7 @@ class TestIncludeDeleted:
         deleted = Product(
             name="Deleted", description="Test",
             cost=Decimal("200.00"), category_id=category.id,
-            deleted_at=datetime.now(timezone.utc),
+            deleted_at=datetime.now(UTC),
         )
         db_session.add_all([active, deleted])
         await db_session.flush()
@@ -226,7 +227,7 @@ class TestIncludeDeleted:
         deleted = Product(
             name="Deleted", description="Test",
             cost=Decimal("200.00"), category_id=category.id,
-            deleted_at=datetime.now(timezone.utc),
+            deleted_at=datetime.now(UTC),
         )
         db_session.add_all([active, deleted])
         await db_session.flush()
@@ -268,7 +269,7 @@ class TestIncludeDeleted:
         deleted = Product(
             name="Deleted", description="Test",
             cost=Decimal("200.00"), category_id=category.id,
-            deleted_at=datetime.now(timezone.utc),
+            deleted_at=datetime.now(UTC),
             status=ProductStatus.OUTOFSTOCK,
         )
         db_session.add_all([active, deleted])

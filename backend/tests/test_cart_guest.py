@@ -12,13 +12,12 @@
 - 404 для несуществующего товара;
 - отсутствие двойного учёта при PATCH несуществующей позиции (no-op).
 """
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
 
 from app.core.config import get_settings
-from app.models.product import Product
 
 
 class TestGuestCartAdd:
@@ -85,7 +84,7 @@ class TestGuestCartAdd:
         self, cart_client, db_session, product
     ):
         """Soft-deleted товар нельзя добавить в корзину."""
-        product.deleted_at = datetime.now(timezone.utc)
+        product.deleted_at = datetime.now(UTC)
         await db_session.flush()
 
         response = await cart_client.post(
@@ -257,7 +256,7 @@ class TestGuestCartSoftDeleted:
             json={"product_id": product.id, "quantity": 1},
         )
 
-        product.deleted_at = datetime.now(timezone.utc)
+        product.deleted_at = datetime.now(UTC)
         await db_session.flush()
 
         response = await cart_client.get("/api/v1/cart")
@@ -290,7 +289,7 @@ class TestGuestCartSoftDeleted:
         )
 
         # Удаляем один
-        product.deleted_at = datetime.now(timezone.utc)
+        product.deleted_at = datetime.now(UTC)
         await db_session.flush()
 
         response = await cart_client.get("/api/v1/cart")

@@ -9,7 +9,6 @@
 """
 import hashlib
 from decimal import Decimal
-from typing import Optional
 
 from app.db.enum import ProductStatus
 
@@ -33,10 +32,10 @@ def build_product_list_cache_key(
     *,
     page: int,
     page_size: int,
-    category_id: Optional[int],
-    min_cost: Optional[Decimal],
-    max_cost: Optional[Decimal],
-    status: Optional[ProductStatus],
+    category_id: int | None,
+    min_cost: Decimal | None,
+    max_cost: Decimal | None,
+    status: ProductStatus | None,
     sort_by: str,
     sort_order: str,
 ) -> str:
