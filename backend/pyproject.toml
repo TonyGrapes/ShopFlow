@@ -77,3 +77,10 @@ extend-immutable-calls = [
 # Намеренные реэкспорты для регистрации моделей в Base.metadata (Alembic)
 "app/models/__init__.py" = ["F401"]
 "app/db/__init__.py" = ["F401"]
+
+[tool.ruff.lint.isort]
+# `alembic` — пакет из PyPI, но в backend/alembic/ лежат миграции.
+# Без этой строки ruff эвристически считает `alembic` first-party
+# и неправильно группирует `from alembic import ...` (см. TST-003).
+# После CLN-019 (rename alembic/ → migrations/) — можно убрать.
+known-third-party = ["alembic"]

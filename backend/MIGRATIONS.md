@@ -127,6 +127,27 @@ bash clean_chain_test.sh
 
 ---
 
+## Важно: `alembic` CLI с хоста не работает
+
+`alembic` читает `.env` (там `POSTGRES_HOST=db` — docker-compose service name),
+а не `.env.test`. С хоста имя `db` не резолвится → `OperationalError: could not translate host name "db"`.
+
+Правильные варианты запуска:
+
+    # 1. В контейнере (рекомендуется)
+    docker compose exec -T backend uv run --no-sync alembic current
+
+    # 2. С хоста, но с env-override под db-test (порт 5433)
+    POSTGRES_HOST=localhost POSTGRES_PORT=5433 uv run alembic current
+
+    # 3. Через pytest — TST-003 подхватывает `.env.test` + env-override
+    uv run pytest tests/test_migration_drift.py -v
+
+Это **не баг**, а следствие двух `.env`. `clean_chain_test.sh` всегда
+запускает alembic в контейнере — именно поэтому он работает.
+
+---
+
 ## Ссылки
 
 - `alembic/versions/` — история ревизий.

@@ -1,12 +1,12 @@
+
+import os
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
+from sqlalchemy import engine_from_config, pool
 
 from alembic import context
-
-from app.db.base import Base
 from app.core.config import get_settings
+from app.db.base import Base
 from app.models import *
 
 # this is the Alembic Config object, which provides
@@ -15,12 +15,20 @@ config = context.config
 
 
 settings = get_settings()
-config.set_main_option("sqlalchemy.url", settings.database_url.replace("+asyncpg", ""))
+# TST-003: env-override для теста дрейфа миграций.
+# Тест задаёт SHOPFLOW_MIGRATIONS_DB_URL перед вызовом command.upgrade,
+# чтобы накатить миграции на изолированную БД shopflow_drift_test.
+# Штатный путь (без env) — settings.database_url без +asyncpg.
+_url_override = os.environ.get("SHOPFLOW_MIGRATIONS_DB_URL")
+if _url_override:
+    config.set_main_option("sqlalchemy.url", _url_override)
+else:
+    config.set_main_option("sqlalchemy.url", settings.database_url.replace("+asyncpg", ""))
 
-# Interpret the config file for Python logging.
-# This line sets up loggers basically.
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # TST-003: disable_existing_loggers=False, иначе fileConfig погасит
+    # логгеры для последующих тестов (тот же процесс).
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 # add your model's MetaData object here
 # for 'autogenerate' support
