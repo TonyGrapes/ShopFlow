@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import ConflictError
 from app.db.enum import ProductStatus
+from app.db.errors import is_unique_violation
 from app.models.category import Category
 from app.models.product import Product
 from app.schemas.product import (
@@ -110,36 +111,6 @@ def serialize_product_list_item(product: Product) -> ProductListItem:
         cover_url=storage.get_url(product.cover_key) if product.cover_key else None,
     )
 
-
-# ---------- Внутренние утилиты ----------
-
-def _is_active_name_conflict(exc: IntegrityError) -> bool:
-    """
-    Проверяет, что IntegrityError — это именно конфликт активного имени.
-
-    Двухуровневая проверка (потому что для partial unique index
-    asyncpg может не заполнять diag.constraint_name):
-    1. sqlstate = 23505 (unique_violation) — обязательное условие.
-    2. Имя индекса в тексте сообщения — либо в diag, либо в str(orig).
-    """
-    orig = getattr(exc, "orig", None)
-    if orig is None:
-        return False
-
-    sqlstate = getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
-    if sqlstate != "23505":
-        return False
-
-    message = str(orig)
-    diag = getattr(orig, "diag", None)
-    constraint_name = getattr(diag, "constraint_name", None) if diag else None
-
-    return (
-        constraint_name == _ACTIVE_NAME_CONSTRAINT
-        or _ACTIVE_NAME_CONSTRAINT in message
-    )
-
-
 # ---------- CRUD ----------
 
 async def get_product(db: AsyncSession, product_id: int) -> Product | None:
@@ -174,7 +145,7 @@ async def create_product(db: AsyncSession, data: ProductCreate) -> Product:
         await db.flush()                # ← здесь может вылететь IntegrityError
     except IntegrityError as exc:
 
-        if _is_active_name_conflict(exc):
+        if is_unique_violation(exc, _ACTIVE_NAME_CONSTRAINT):
             raise ConflictError(
                 f"Product with name '{data.name}' already exists",
                 code="name_taken"
@@ -216,7 +187,7 @@ async def update_product(
     try:
         await db.flush()
     except IntegrityError as exc:
-        if _is_active_name_conflict(exc):
+        if is_unique_violation(exc, _ACTIVE_NAME_CONSTRAINT):
             new_name = update_data.get("name") or "existing"
             raise ConflictError(
                 f"Product with name '{new_name}' already exists",

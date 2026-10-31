@@ -24,6 +24,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError
+from app.db.errors import is_unique_violation
 from app.models.address import Address
 from app.schemas.address import AddressCreate, AddressUpdate
 
@@ -102,7 +103,7 @@ async def create_address(
     try:
         await db.flush()
     except IntegrityError as exc:
-        if _is_default_conflict(exc):
+        if is_unique_violation(exc, _DEFAULT_ADDRESS_CONSTRAINT):
             raise ConflictError("default address conflict", code="default_conflict") from exc
         logger.exception("Unexpected IntegrityError on create_address")
         raise
@@ -135,7 +136,7 @@ async def update_address(
     try:
         await db.flush()
     except IntegrityError as exc:
-        if _is_default_conflict(exc):
+        if is_unique_violation(exc, _DEFAULT_ADDRESS_CONSTRAINT):
             raise ConflictError("default address conflict", code="default_conflict") from exc
         logger.exception("Unexpected IntegrityError on update_address")
         raise
@@ -178,7 +179,7 @@ async def set_default(
     try:
         await db.flush()
     except IntegrityError as exc:
-        if _is_default_conflict(exc):
+        if is_unique_violation(exc, _DEFAULT_ADDRESS_CONSTRAINT):
             raise ConflictError("default address conflict", code="default_conflict") from exc
         logger.exception("Unexpected IntegrityError on set_default")
         raise
@@ -186,33 +187,3 @@ async def set_default(
     await db.refresh(address)
     return address
 
-
-# ============================================================
-#  Внутренние утилиты
-# ============================================================
-
-def _is_default_conflict(exc: IntegrityError) -> bool:
-    """
-    Проверяет, что IntegrityError — это конфликт partial unique index
-    на дефолтный адрес.
-
-    Аналог `_is_active_name_conflict` в product_service: sqlstate 23505
-    + имя индекса. Для partial index asyncpg может не заполнять
-    diag.constraint_name → ищем в тексте.
-    """
-    orig = getattr(exc, "orig", None)
-    if orig is None:
-        return False
-
-    sqlstate = getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
-    if sqlstate != "23505":
-        return False
-
-    message = str(orig)
-    diag = getattr(orig, "diag", None)
-    constraint_name = getattr(diag, "constraint_name", None) if diag else None
-
-    return (
-        constraint_name == _DEFAULT_ADDRESS_CONSTRAINT
-        or _DEFAULT_ADDRESS_CONSTRAINT in message
-    )

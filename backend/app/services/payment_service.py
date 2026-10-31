@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, ValidationError
 from app.db.enum import OrderStatus, PaymentMethod, PaymentStatus
+from app.db.errors import is_unique_violation
 from app.models.order import Order
 from app.models.payment import Payment
 from app.schemas.payment import PaymentResponse
@@ -123,7 +124,7 @@ async def process_payment(
     try:
         await db.flush()
     except IntegrityError as exc:
-        if _is_external_id_conflict(exc):
+        if is_unique_violation(exc, _PAYMENT_EXTERNAL_ID_CONSTRAINT):
             if external_id is not None:
                 existing = (await db.execute(
                     select(Payment).where(Payment.external_id == external_id)
@@ -161,31 +162,3 @@ def serialize_payment(payment: Payment) -> PaymentResponse:
         created_at=payment.created_at,
     )
 
-
-# ============================================================
-#  Внутренние утилиты
-# ============================================================
-
-def _is_external_id_conflict(exc: IntegrityError) -> bool:
-    """
-    Проверяет, что IntegrityError — конфликт partial unique index
-    на external_id платежа.
-
-    Аналог `_is_active_name_conflict` и `_is_default_conflict`.
-    """
-    orig = getattr(exc, "orig", None)
-    if orig is None:
-        return False
-
-    sqlstate = getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
-    if sqlstate != "23505":
-        return False
-
-    message = str(orig)
-    diag = getattr(orig, "diag", None)
-    constraint_name = getattr(diag, "constraint_name", None) if diag else None
-
-    return (
-        constraint_name == _PAYMENT_EXTERNAL_ID_CONSTRAINT
-        or _PAYMENT_EXTERNAL_ID_CONSTRAINT in message
-    )

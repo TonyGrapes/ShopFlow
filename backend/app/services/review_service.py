@@ -25,6 +25,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import ConflictError
 from app.db.enum import OrderStatus
+from app.db.errors import is_unique_violation
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.product import Product
@@ -132,7 +133,7 @@ async def create_review(
     try:
         await db.flush()
     except IntegrityError as exc:
-        if _is_active_review_conflict(exc):
+        if is_unique_violation(exc, _ACTIVE_REVIEW_CONSTRAINT):
             raise ConflictError("already reviewed", code="already_reviewed") from exc
         logger.exception("Unexpected IntegrityError on create_review")
         raise
@@ -299,25 +300,3 @@ async def _load_review(db: AsyncSession, review_id: int) -> Review:
     )
     return result.scalar_one()
 
-
-def _is_active_review_conflict(exc: IntegrityError) -> bool:
-    """
-    Проверяет, что IntegrityError — конфликт partial unique index
-    на активный отзыв (user_id, product_id).
-    """
-    orig = getattr(exc, "orig", None)
-    if orig is None:
-        return False
-
-    sqlstate = getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
-    if sqlstate != "23505":
-        return False
-
-    message = str(orig)
-    diag = getattr(orig, "diag", None)
-    constraint_name = getattr(diag, "constraint_name", None) if diag else None
-
-    return (
-        constraint_name == _ACTIVE_REVIEW_CONSTRAINT
-        or _ACTIVE_REVIEW_CONSTRAINT in message
-    )

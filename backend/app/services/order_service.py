@@ -24,6 +24,7 @@ from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import ConflictError, ValidationError
 from app.db.enum import OrderStatus, ProductStatus
+from app.db.errors import is_unique_violation
 from app.models.address import Address
 from app.models.cart_item import CartItem
 from app.models.order import Order
@@ -75,22 +76,6 @@ def validate_transition(current: OrderStatus, new: OrderStatus) -> None:
         )
 
 _IDEMPOTENCY_CONSTRAINT = "uq_orders_user_idempotency_key"
-
-def _is_idempotency_conflict(exc: IntegrityError) -> bool:
-    orig = getattr(exc, "orig", None)
-    if orig is None:
-        return False
-    sqlstate = getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
-    if sqlstate != "23505":
-        return False
-    message = str(orig)
-    diag = getattr(orig, "diag", None)
-    constraint_name = getattr(diag, "constraint_name", None) if diag else None
-    return (
-        constraint_name == _IDEMPOTENCY_CONSTRAINT
-        or _IDEMPOTENCY_CONSTRAINT in message
-    )
-
 
 # ============================================================
 #  Создание заказа из корзины
@@ -256,7 +241,7 @@ async def create_order_from_cart(
     try:
         await db.flush()
     except IntegrityError as exc:
-        if _is_idempotency_conflict(exc):
+        if is_unique_violation(exc, _IDEMPOTENCY_CONSTRAINT):
             # Гонка: другой параллельный запрос уже создал заказ с этим ключом.
             # Пытаемся найти — если другой уже закоммитил, вернём его.
             existing = await _find_existing_by_idempotency_key(

@@ -26,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError, ValidationError
 from app.db.enum import PaymentStatus, RefundStatus
+from app.db.errors import is_unique_violation
 from app.models.payment import Payment
 from app.models.refund import Refund
 from app.schemas.refund import RefundCreate
@@ -184,7 +185,7 @@ async def create_refund(
     try:
         await db.flush()
     except IntegrityError as exc:
-        if _is_external_id_conflict(exc):
+        if is_unique_violation(exc, _REFUND_EXTERNAL_ID_CONSTRAINT):
             if data.external_id is not None:
                 existing = (await db.execute(
                     select(Refund).where(Refund.external_id == data.external_id)
@@ -252,27 +253,4 @@ def serialize_refund(refund: Refund):
         external_id=refund.external_id,
         refunded_at=refund.refunded_at,
         created_at=refund.created_at,
-    )
-
-
-# ============================================================
-#  Утилиты
-# ============================================================
-
-def _is_external_id_conflict(exc: IntegrityError) -> bool:
-    orig = getattr(exc, "orig", None)
-    if orig is None:
-        return False
-
-    sqlstate = getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
-    if sqlstate != "23505":
-        return False
-
-    message = str(orig)
-    diag = getattr(orig, "diag", None)
-    constraint_name = getattr(diag, "constraint_name", None) if diag else None
-
-    return (
-        constraint_name == _REFUND_EXTERNAL_ID_CONSTRAINT
-        or _REFUND_EXTERNAL_ID_CONSTRAINT in message
     )

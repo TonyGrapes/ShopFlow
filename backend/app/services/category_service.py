@@ -21,6 +21,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ConflictError
+from app.db.errors import is_unique_violation
 from app.models.category import Category
 from app.models.product import Product
 from app.schemas.category import CategoryCreate, CategoryUpdate
@@ -103,7 +104,7 @@ async def create_category(
     try:
         await db.flush()
     except IntegrityError as exc:
-        if _is_path_conflict(exc):
+        if is_unique_violation(exc, _CATEGORY_PATH_CONSTRAINT):
             raise ConflictError(
                 "category name taken under parent",
                 code="category_name_taken",
@@ -279,7 +280,7 @@ async def _move_category(
         category.path = new_path
         await db.flush()
     except IntegrityError as exc:
-        if _is_path_conflict(exc):
+        if is_unique_violation(exc, _CATEGORY_PATH_CONSTRAINT):
             raise ConflictError("target path already exists", code="path_conflict") from exc
         raise
 
@@ -323,26 +324,3 @@ async def delete_category(db: AsyncSession, category_id: int) -> bool:
     await db.flush()
     return True
 
-
-# ============================================================
-#  Утилиты
-# ============================================================
-
-def _is_path_conflict(exc: IntegrityError) -> bool:
-    """IntegrityError на UNIQUE(path) в categories."""
-    orig = getattr(exc, "orig", None)
-    if orig is None:
-        return False
-
-    sqlstate = getattr(orig, "sqlstate", None) or getattr(orig, "pgcode", None)
-    if sqlstate != "23505":
-        return False
-
-    message = str(orig)
-    diag = getattr(orig, "diag", None)
-    constraint_name = getattr(diag, "constraint_name", None) if diag else None
-
-    return (
-        constraint_name == _CATEGORY_PATH_CONSTRAINT
-        or _CATEGORY_PATH_CONSTRAINT in message
-    )
