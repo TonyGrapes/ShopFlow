@@ -50,7 +50,10 @@ fail() {
 : "${MINIO_BUCKET:=shopflow-media}"
 : "${REDIS_CONTAINER:=shopflow-redis}"
 : "${BACKEND_CONTAINER:=shopflow-backend}"
-: "${REDIS_PASSWORD:=redisadmin123}"
+# SEC-X-02: NO fallback. If .env didn't load REDIS_PASSWORD, fail with a
+# clear message instead of silently using a hardcoded default (which
+# would leak the password into the git history and ps output).
+: "${REDIS_PASSWORD:?REDIS_PASSWORD is not set. Add it to .env or export it.}"
 
 [[ -v SEED_CATEGORY_PATH ]] || readonly SEED_CATEGORY_PATH="test"
 [[ -v SEED_CATEGORY_NAME ]] || readonly SEED_CATEGORY_NAME="Тестовая категория"
@@ -146,16 +149,25 @@ product_exists() {
 flush_cache() {
     log_info "Сброс кэша Redis..."
 
+    # SEC-X-02: pass the password via REDISCLI_AUTH env var, not -a.
+    # -a <pass> is visible in `ps aux` on the host (docker exec argv);
+    # REDISCLI_AUTH is read by redis-cli from env inside the container.
+    # `docker exec -e REDISCLI_AUTH` (no =value) propagates from the
+    # client's environment — Docker documents this explicitly.
     local keys
-    keys=$(docker exec "$REDIS_CONTAINER" redis-cli -a "$REDIS_PASSWORD" --no-auth-warning \
+    keys=$(REDISCLI_AUTH="$REDIS_PASSWORD" \
+        docker exec -e REDISCLI_AUTH "$REDIS_CONTAINER" redis-cli \
         --scan --pattern "products:list:*" 2>/dev/null | wc -l)
 
     if [ "$keys" -gt 0 ]; then
-        docker exec "$REDIS_CONTAINER" redis-cli -a "$REDIS_PASSWORD" --no-auth-warning \
+        REDISCLI_AUTH="$REDIS_PASSWORD" \
+            docker exec -e REDISCLI_AUTH "$REDIS_CONTAINER" redis-cli \
             --scan --pattern "products:list:*" 2>/dev/null | \
             while read -r key; do
-                [ -n "$key" ] && docker exec "$REDIS_CONTAINER" redis-cli \
-                    -a "$REDIS_PASSWORD" --no-auth-warning DEL "$key" >/dev/null
+                [ -n "$key" ] && \
+                    REDISCLI_AUTH="$REDIS_PASSWORD" \
+                    docker exec -e REDISCLI_AUTH "$REDIS_CONTAINER" redis-cli \
+                    DEL "$key" >/dev/null
             done
         log_ok "Удалено ключей: $keys"
     else
