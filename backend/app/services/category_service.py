@@ -15,12 +15,11 @@
 import logging
 import re
 
-from fastapi import HTTPException, status
 from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.exceptions import ConflictError
+from app.core.exceptions import ConflictError, ValidationError
 from app.db.errors import is_unique_violation
 from app.models.category import Category
 from app.models.product import Product
@@ -56,12 +55,9 @@ def _slugify(name: str) -> str:
     slug = slug[:63]
 
     if not slug:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "code": "invalid_category_name",
-                "message": "Category name must contain at least one alphanumeric character",
-            },
+        raise ValidationError(
+            "Category name must contain at least one alphanumeric character",
+            code="invalid_category_name",
         )
     return slug
 
@@ -82,12 +78,10 @@ async def create_category(
     if data.parent_id is not None:
         parent = await db.get(Category, data.parent_id)
         if parent is None:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail={
-                    "code": "invalid_parent",
-                    "parent_id": data.parent_id,
-                },
+            raise ValidationError(
+                "Invalid parent category",
+                code="invalid_parent",
+                extra={"parent_id": data.parent_id},
             )
         parent_path = str(parent.path)
 
@@ -219,19 +213,20 @@ async def _move_category(
     """
     # 1. Нельзя быть родителем себе
     if new_parent_id == category.id:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={"code": "self_parent", "message": "Category cannot be its own parent"},
+        raise ValidationError(
+            "Category cannot be its own parent",
+            code="self_parent",
         )
-
     # 2. Новый родитель существует?
     parent_path = ""
+    
     if new_parent_id is not None:
         new_parent = await db.get(Category, new_parent_id)
         if new_parent is None:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail={"code": "invalid_parent", "parent_id": new_parent_id},
+            raise ValidationError(
+                "Invalid parent category",
+                code="invalid_parent",
+                extra={"parent_id": new_parent_id},
             )
         # 3. Новый родитель не внутри поддерева текущей категории (цикл).
         #    Используем ltree-оператор <@ — точная семантика «descendant or equal».
@@ -244,12 +239,9 @@ async def _move_category(
             {"pid": new_parent_id, "cpath": str(category.path)},
         )
         if cycle_check.scalar_one_or_none() is not None:
-            raise HTTPException(
-                status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail={
-                    "code": "cycle_detected",
-                    "message": "Cannot move category into its own subtree",
-                },
+            raise ValidationError(
+                "Cannot move category into its own subtree",
+                code="cycle_detected",
             )
         parent_path = str(new_parent.path)
 

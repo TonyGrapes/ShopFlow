@@ -13,9 +13,8 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
-from fastapi import HTTPException
 
-from app.core.exceptions import ConflictError
+from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
 from app.db.enum import OrderStatus
 from app.models.order import Order
 from app.models.order_item import OrderItem
@@ -140,10 +139,10 @@ class TestCreateReview:
         self, db_session, verified_user
     ):
         data = ReviewCreate(product_id=999999, rating=5)
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(NotFoundError) as exc:
             await review_service.create_review(db_session, verified_user, data)
         assert exc.value.status_code == 404
-        assert exc.value.detail["code"] == "product_not_found"
+        assert exc.value.code == "product_not_found"
 
     @pytest.mark.asyncio
     async def test_no_delivered_order_403(
@@ -151,10 +150,10 @@ class TestCreateReview:
     ):
         """Без delivered-заказа — 403."""
         data = ReviewCreate(product_id=product.id, rating=5)
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ForbiddenError) as exc:
             await review_service.create_review(db_session, verified_user, data)
         assert exc.value.status_code == 403
-        assert exc.value.detail["code"] == "no_delivered_order"
+        assert exc.value.code == "no_delivered_order"
 
     @pytest.mark.asyncio
     async def test_soft_deleted_product_404(
@@ -164,9 +163,11 @@ class TestCreateReview:
         await db_session.flush()
 
         data = ReviewCreate(product_id=product.id, rating=5)
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(NotFoundError) as exc:
             await review_service.create_review(db_session, verified_user, data)
         assert exc.value.status_code == 404
+        assert exc.value.code == "product_not_found"
+
 
     @pytest.mark.asyncio
     async def test_already_reviewed_409(

@@ -3,13 +3,12 @@ import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from fastapi import HTTPException, status
 from sqlalchemy import asc, desc, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.exceptions import ConflictError
+from app.core.exceptions import ConflictError, ValidationError
 from app.db.enum import ProductStatus
 from app.db.errors import is_unique_violation
 from app.models.category import Category
@@ -133,9 +132,10 @@ async def create_product(db: AsyncSession, data: ProductCreate) -> Product:
     if data.category_id is not None:
         category = await db.get(Category, data.category_id)
         if category is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Category {data.category_id} not found",
+            raise ValidationError(
+                f"Category {data.category_id} not found",
+                code="invalid_category",
+                extra={"category_id": data.category_id},
             )
 
     product = Product(**data.model_dump())
@@ -176,11 +176,12 @@ async def update_product(
     if "category_id" in update_data and update_data["category_id"] is not None:
         category = await db.get(Category, update_data["category_id"])
         if category is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail=f"Category {update_data['category_id']} not found",
+            raise ValidationError(
+                f"Category {update_data['category_id']} not found",
+                code="invalid_category",
+                extra={"category_id": update_data["category_id"]},
             )
-
+        
     for field, value in update_data.items():
         setattr(product, field, value)
 

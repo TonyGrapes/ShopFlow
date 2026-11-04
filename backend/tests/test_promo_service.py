@@ -16,8 +16,8 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
-from fastapi import HTTPException
 
+from app.core.exceptions import ValidationError
 from app.db.enum import DiscountType
 from app.models.promo_code import PromoCode
 from app.services.promo_service import (
@@ -104,14 +104,14 @@ class TestValidateAndCalculate:
 
     @pytest.mark.asyncio
     async def test_not_found(self, db_session):
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             await validate_and_calculate(
                 db_session, "NOPE", Decimal("1000.00")
             )
         assert exc.value.status_code == 422
-        assert exc.value.detail["code"] == "invalid_promo"
-        assert exc.value.detail["reason"] == "not_found"
-        assert exc.value.detail["promo_code"] == "NOPE"
+        assert exc.value.code == "invalid_promo"
+        assert exc.value.extra["reason"] == "not_found"
+        assert exc.value.extra["promo_code"] == "NOPE"
 
     @pytest.mark.asyncio
     async def test_inactive_treated_as_not_found(
@@ -120,11 +120,11 @@ class TestValidateAndCalculate:
         promo_code.is_active = False
         await db_session.flush()
 
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             await validate_and_calculate(
                 db_session, "SUMMER10", Decimal("1000.00")
             )
-        assert exc.value.detail["reason"] == "not_found"
+        assert exc.value.extra["reason"] == "not_found"
 
     @pytest.mark.asyncio
     async def test_not_yet_active(self, db_session):
@@ -140,11 +140,11 @@ class TestValidateAndCalculate:
         db_session.add(p)
         await db_session.flush()
 
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             await validate_and_calculate(
                 db_session, "FUTURE", Decimal("1000.00")
             )
-        assert exc.value.detail["reason"] == "not_yet_active"
+        assert exc.value.extra["reason"] == "not_yet_active"
 
     @pytest.mark.asyncio
     async def test_expired(self, db_session):
@@ -160,11 +160,11 @@ class TestValidateAndCalculate:
         db_session.add(p)
         await db_session.flush()
 
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             await validate_and_calculate(
                 db_session, "EXPIRED", Decimal("1000.00")
             )
-        assert exc.value.detail["reason"] == "expired"
+        assert exc.value.extra["reason"] == "expired"
 
     @pytest.mark.asyncio
     async def test_min_order_amount(self, db_session):
@@ -181,13 +181,13 @@ class TestValidateAndCalculate:
         db_session.add(p)
         await db_session.flush()
 
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             await validate_and_calculate(
                 db_session, "MIN5000", Decimal("1000.00")
             )
-        assert exc.value.detail["reason"] == "min_order_amount"
-        assert exc.value.detail["min_order_amount"] == "5000.00"
-        assert exc.value.detail["subtotal"] == "1000.00"
+        assert exc.value.extra["reason"] == "min_order_amount"
+        assert exc.value.extra["min_order_amount"] == "5000.00"
+        assert exc.value.extra["subtotal"] == "1000.00"
 
     @pytest.mark.asyncio
     async def test_min_order_amount_exactly_equal_ok(self, db_session):

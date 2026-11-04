@@ -152,7 +152,7 @@ class TestCreateCategoryEndpoint:
             headers=admin_headers,
         )
         assert response.status_code == 422
-        assert response.json()["detail"]["code"] == "invalid_parent"
+        assert response.json()["code"] == "invalid_parent"
 
     @pytest.mark.asyncio
     async def test_create_duplicate_409(
@@ -236,7 +236,7 @@ class TestUpdateCategoryEndpoint:
             headers=admin_headers,
         )
         assert response.status_code == 422
-        assert response.json()["detail"]["code"] == "self_parent"
+        assert response.json()["code"] == "self_parent"
 
     @pytest.mark.asyncio
     async def test_cycle_422(
@@ -248,7 +248,7 @@ class TestUpdateCategoryEndpoint:
             headers=admin_headers,
         )
         assert response.status_code == 422
-        assert response.json()["detail"]["code"] == "cycle_detected"
+        assert response.json()["code"] == "cycle_detected"
 
     @pytest.mark.asyncio
     async def test_requires_admin(

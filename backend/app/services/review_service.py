@@ -17,13 +17,12 @@ Reason'ы ошибок при POST:
 import logging
 from datetime import UTC, datetime
 
-from fastapi import HTTPException, status
 from sqlalchemy import asc, desc, func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.core.exceptions import ConflictError
+from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
 from app.db.enum import OrderStatus
 from app.db.errors import is_unique_violation
 from app.models.order import Order
@@ -88,25 +87,19 @@ async def create_review(
     # 1. Товар
     product = await db.get(Product, data.product_id)
     if product is None or product.deleted_at is not None:
-        raise HTTPException(
-            status.HTTP_404_NOT_FOUND,
-            detail={
-                "code": "product_not_found",
-                "product_id": data.product_id,
-            },
+        raise NotFoundError(
+            "Product not found",
+            code="product_not_found",
+            extra={"product_id": data.product_id},
         )
 
     # 2. Delivered-заказ
     order = await get_reviewable_order(db, user.id, data.product_id)
     if order is None:
-        raise HTTPException(
-            status.HTTP_403_FORBIDDEN,
-            detail={
-                "code": "no_delivered_order",
-                "message": "You can only review products you have received",
-            },
+        raise ForbiddenError(
+            "You can only review products you have received",
+            code="no_delivered_order",
         )
-
     # 3. Активный отзыв уже есть
     existing = (await db.execute(
         select(Review).where(

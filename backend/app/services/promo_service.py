@@ -18,10 +18,10 @@ import logging
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 
-from fastapi import HTTPException, status
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.exceptions import ValidationError
 from app.db.enum import DiscountType
 from app.models.promo_code import PromoCode
 
@@ -128,14 +128,9 @@ async def reserve_promo_use(
 # ============================================================
 
 def _raise_invalid(code: str, reason: str, **extra) -> None:
-    """Бросает 422 с единой структурой detail."""
-    detail = {
-        "code": "invalid_promo",
-        "promo_code": code,
-        "reason": reason,
-    }
-    detail.update(extra)
-    raise HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-        detail=detail,
+    """Бросает 422 с единой плоской структурой."""
+    raise ValidationError(
+        f"Invalid promo code: {reason}",
+        code="invalid_promo",
+        extra={"promo_code": code, "reason": reason, **extra},
     )

@@ -15,9 +15,8 @@ from datetime import UTC
 from decimal import Decimal
 
 import pytest
-from fastapi import HTTPException
 
-from app.core.exceptions import ConflictError
+from app.core.exceptions import ConflictError, ValidationError
 from app.models.category import Category
 from app.models.product import Product
 from app.schemas.category import CategoryCreate, CategoryUpdate
@@ -60,13 +59,13 @@ class TestSlugify:
         assert len(_slugify(long_name)) == 63
 
     def test_empty_raises_422(self):
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             _slugify("   ")
         assert exc.value.status_code == 422
-        assert exc.value.detail["code"] == "invalid_category_name"
+        assert exc.value.code == "invalid_category_name"
 
     def test_only_symbols_raises_422(self):
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             _slugify("!!!")
         assert exc.value.status_code == 422
 
@@ -117,13 +116,13 @@ class TestCreateCategory:
 
     @pytest.mark.asyncio
     async def test_invalid_parent_422(self, db_session):
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             await category_service.create_category(
                 db_session,
                 CategoryCreate(category_name="Orphan", parent_id=999999),
             )
         assert exc.value.status_code == 422
-        assert exc.value.detail["code"] == "invalid_parent"
+        assert exc.value.code == "invalid_parent"
 
     @pytest.mark.asyncio
     async def test_duplicate_name_same_parent_409(
@@ -342,14 +341,14 @@ class TestMoveCategory:
     async def test_self_parent_422(
         self, db_session, category_root: Category
     ):
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             await category_service.update_category(
                 db_session,
                 category_root.id,
                 CategoryUpdate(parent_id=category_root.id),
             )
         assert exc.value.status_code == 422
-        assert exc.value.detail["code"] == "self_parent"
+        assert exc.value.code == "self_parent"
 
     @pytest.mark.asyncio
     async def test_cycle_detected_422(
@@ -359,14 +358,14 @@ class TestMoveCategory:
         Переместить electronics в своего внука gaming → цикл.
         Проверяется через ltree <@, а не startswith.
         """
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             await category_service.update_category(
                 db_session,
                 category_root.id,
                 CategoryUpdate(parent_id=category_grandchild.id),
             )
         assert exc.value.status_code == 422
-        assert exc.value.detail["code"] == "cycle_detected"
+        assert exc.value.code == "cycle_detected"
 
     @pytest.mark.asyncio
     async def test_move_conflict_409(

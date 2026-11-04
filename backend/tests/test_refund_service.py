@@ -13,7 +13,6 @@ from datetime import UTC, datetime
 from decimal import Decimal
 
 import pytest
-from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.core.exceptions import ConflictError, ValidationError
@@ -279,10 +278,10 @@ class TestRefundStateMachine:
         if should_pass:
             validate_refund_transition(current, new)
         else:
-            with pytest.raises(HTTPException) as exc:
+            with pytest.raises(ValidationError) as exc:
                 validate_refund_transition(current, new)
             assert exc.value.status_code == 422
-            assert exc.value.detail["code"] == "invalid_refund_transition"
+            assert exc.value.code == "invalid_refund_transition"
 
 
 # ============================================================

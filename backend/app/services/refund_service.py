@@ -19,7 +19,6 @@ import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from fastapi import HTTPException, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -56,10 +55,10 @@ def validate_refund_transition(
 ) -> None:
     """Проверяет допустимость перехода."""
     if new not in _ALLOWED_REFUND_TRANSITIONS[current]:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "code": "invalid_refund_transition",
+        raise ValidationError(
+            "Invalid refund status transition",
+            code="invalid_refund_transition",
+            extra={
                 "from": current.value,
                 "to": new.value,
                 "allowed": sorted(
@@ -67,7 +66,6 @@ def validate_refund_transition(
                 ),
             },
         )
-
 
 # ============================================================
 #  Создание возврата

@@ -165,7 +165,7 @@ class TestAdminOrdersStatusUpdate:
             headers=admin_headers,
         )
         assert response.status_code == 422
-        body = response.json()["detail"]
+        body = response.json()
         assert body["code"] == "invalid_transition"
         assert body["from"] == "delivered"
         assert body["to"] == "paid"
@@ -183,7 +183,7 @@ class TestAdminOrdersStatusUpdate:
             headers=admin_headers,
         )
         assert response.status_code == 422
-        assert response.json()["detail"]["code"] == "invalid_transition"
+        assert response.json()["code"] == "invalid_transition"
 
     @pytest.mark.asyncio
     async def test_patch_missing_order_404(self, client, admin_headers):

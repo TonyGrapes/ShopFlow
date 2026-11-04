@@ -145,7 +145,7 @@ class TestCreateReviewEndpoint:
             headers=auth_headers,
         )
         assert response.status_code == 403
-        assert response.json()["detail"]["code"] == "no_delivered_order"
+        assert response.json()["code"] == "no_delivered_order"
 
     @pytest.mark.asyncio
     async def test_create_product_not_found_404(

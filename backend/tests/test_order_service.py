@@ -9,7 +9,6 @@ from datetime import UTC
 from decimal import Decimal
 
 import pytest
-from fastapi import HTTPException
 from sqlalchemy import select
 
 from app.core.exceptions import ValidationError
@@ -231,10 +230,10 @@ class TestStateMachine:
         if should_pass:
             validate_transition(current, new)   # не должно упасть
         else:
-            with pytest.raises(HTTPException) as exc:
+            with pytest.raises(ValidationError) as exc:
                 validate_transition(current, new)
             assert exc.value.status_code == 422
-            assert exc.value.detail["code"] == "invalid_transition"
+            assert exc.value.code == "invalid_transition"
 
 
 class TestUpdateOrderStatus:
@@ -249,7 +248,7 @@ class TestUpdateOrderStatus:
 
     @pytest.mark.asyncio
     async def test_invalid_transition_raises(self, db_session, paid_order):
-        with pytest.raises(HTTPException) as exc:
+        with pytest.raises(ValidationError) as exc:
             await order_service.update_order_status(
                 db_session, paid_order, OrderStatus.PENDING
             )

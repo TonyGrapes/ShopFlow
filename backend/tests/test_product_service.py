@@ -1,10 +1,9 @@
-# tests/test_product_service.py
 from decimal import Decimal
 
 import pytest
-from fastapi import HTTPException
 from pydantic import ValidationError
 
+from app.core.exceptions import ValidationError as DomainValidationError
 from app.db.enum import ProductStatus
 from app.models.product import Product, ProductImage
 from app.schemas.product import ProductCreate
@@ -69,11 +68,10 @@ class TestCreateProduct:
             cost=money(),
             category_id=999999,
         )
-        with pytest.raises(HTTPException) as exc_info:
+        with pytest.raises(DomainValidationError) as exc_info:
             await product_service.create_product(db_session, data)
-
         assert exc_info.value.status_code == 422
-        assert "999999" in exc_info.value.detail
+        assert exc_info.value.extra["category_id"] == 999999
 
     @pytest.mark.asyncio
     async def test_create_product_with_zero_cost(self, db_session, category):

@@ -96,8 +96,8 @@ class TestApplyPromoPreview:
         )
         assert response.status_code == 422
         body = response.json()
-        assert body["detail"]["code"] == "invalid_promo"
-        assert body["detail"]["reason"] == "not_found"
+        assert body["code"] == "invalid_promo"
+        assert body["reason"] == "not_found"
 
     @pytest.mark.asyncio
     async def test_preview_expired_422(
@@ -121,7 +121,7 @@ class TestApplyPromoPreview:
             headers=auth_headers,
         )
         assert response.status_code == 422
-        assert response.json()["detail"]["reason"] == "expired"
+        assert response.json()["reason"] == "expired"
 
     @pytest.mark.asyncio
     async def test_preview_min_order_amount_422(
@@ -148,9 +148,9 @@ class TestApplyPromoPreview:
         )
         assert response.status_code == 422
         body = response.json()
-        assert body["detail"]["reason"] == "min_order_amount"
-        assert body["detail"]["min_order_amount"] == "5000.00"
-        assert body["detail"]["subtotal"] == "2000.00"
+        assert body["reason"] == "min_order_amount"
+        assert body["min_order_amount"] == "5000.00"
+        assert body["subtotal"] == "2000.00"
 
     @pytest.mark.asyncio
     async def test_preview_guest_allowed(
@@ -253,8 +253,8 @@ class TestCreateOrderWithPromo:
         )
         assert response.status_code == 422
         body = response.json()
-        assert body["detail"]["code"] == "invalid_promo"
-        assert body["detail"]["reason"] == "not_found"
+        assert body["code"] == "invalid_promo"
+        assert body["reason"] == "not_found"
 
     @pytest.mark.asyncio
     async def test_order_expired_promo_422(
@@ -278,7 +278,7 @@ class TestCreateOrderWithPromo:
             headers=auth_headers,
         )
         assert response.status_code == 422
-        assert response.json()["detail"]["reason"] == "expired"
+        assert response.json()["reason"] == "expired"
 
     @pytest.mark.asyncio
     async def test_order_exhausted_promo_422(
