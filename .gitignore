@@ -46,3 +46,6 @@ logs/
 
 # Но оставляем пример
 !.env.test
+# Coverage
+.coverage
+coverage.xml
