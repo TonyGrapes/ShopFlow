@@ -28,7 +28,7 @@ env_files = [".env.test"]
 asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 asyncio_default_test_loop_scope = "function"
-addopts = "-p no:cacheprovider"
+addopts = "-p no:cacheprovider --cov=app --cov-report=term-missing"
 markers = [
     "integration: real-DB tests, no savepoint isolation",
 ]
@@ -84,3 +84,30 @@ extend-immutable-calls = [
 # и неправильно группирует `from alembic import ...` (см. TST-003).
 # После CLN-019 (rename alembic/ → migrations/) — можно убрать.
 known-third-party = ["alembic"]
+
+[tool.coverage.run]
+source = ["app"]
+# smoke_models.py — CLI-скрипт для clean_chain_test.sh, не часть API.
+# 79 строк, 0% в тестах. Покрывать бессмысленно — omit.
+omit = ["app/smoke_models.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = false
+# Baseline 80.69% (statement, app/ без smoke_models.py).
+# fail_under = baseline - 2 ≈ 78.7 → округляем вниз до 78.
+# Точечные прогоны требуют --no-cov (см. README.md).
+fail_under = 78
+# В TOML нет raw-строк r"..."; используем literal-строки в одинарных
+# кавычках — они не обрабатывают escape-последовательности.
+#
+# НЕ включаем '\.\.\.': Ellipsis в проекте используется как Pydantic
+# required-marker в Field(...) — это реальный код, а не заглушка.
+# Если понадобится исключить конкретный Ellipsis — точечно
+# `# pragma: no cover`.
+exclude_lines = [
+    'pragma: no cover',
+    'if __name__ == .__main__.:',
+    'raise NotImplementedError',
+    'if TYPE_CHECKING:',
+]
