@@ -222,6 +222,7 @@ def mock_storage():
         return_value="http://localhost:9000/test-media/products/1/key.jpg"
     )
     storage.ensure_bucket = Mock()
+    storage.bucket_exists = Mock(return_value=True)     # ← НОВОЕ (CLN-012)
     storage.get_object_info = AsyncMock(return_value=None)
     return storage
 

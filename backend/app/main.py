@@ -58,16 +58,44 @@ root.setLevel(logging.INFO)
 async def lifespan(app: FastAPI):
     logger.info("🚀 ShopFlow API starting up")
 
-    # ✅ Прогреваем Redis — ранний fail-fast
+    # Redis: fail-fast (как было) — без Redis приложение не работает.
     redis = get_redis()
     await redis.ping()
     logger.info("Redis connection OK")
+
+    # CLN-012: MinIO bucket — fail-soft с retry.
+    # Идея: docker compose up -d --wait ориентируется на /health.
+    # Если /health → 503, --wait не завершится до появления MinIO,
+    # поэтому фактически это fail-fast на уровне compose, но в dev можно
+    # стартовать и отлаживать без MinIO.
+    storage = get_storage()
+    app.state.minio_ready = False
+    retry_delays = [2, 5, 10]           # суммарно 17с ожидания — влезает в
+                                        # таймаут docker compose --wait (60с)
+    for attempt, delay in enumerate(retry_delays, start=1):
+        try:
+            await asyncio.to_thread(storage.ensure_bucket)
+            app.state.minio_ready = True
+            logger.info("MinIO bucket ensured (attempt %d/%d)", attempt, len(retry_delays))
+            break
+        except Exception:
+            if attempt < len(retry_delays):
+                logger.warning(
+                    "MinIO ensure_bucket failed (attempt %d/%d), retry in %ds",
+                    attempt, len(retry_delays), delay,
+                )
+                await asyncio.sleep(delay)
+            else:
+                logger.error(
+                    "MinIO ensure_bucket failed after %d attempts; "
+                    "/health will report 'minio: unavailable' until next restart",
+                    len(retry_delays),
+                )
 
     yield
 
     logger.info("👋 ShopFlow API shutting down")
     await close_redis()
-
 
 app = FastAPI(
     title="ShopFlow API",
@@ -157,12 +185,21 @@ async def health_check(
     except Exception:
         logger.exception("Health: Redis unavailable")
 
-    try:
-        await asyncio.to_thread(storage.ensure_bucket)
-        minio_ok = True
-    except Exception:
-        logger.exception("Health: MinIO unavailable")
-
+        # CLN-012: лёгкая проверка MinIO.
+    # - minio_ready is False (lifespan упал) → сразу 503 без S3-вызова.
+    # - minio_ready is None (тесты через ASGITransport, lifespan не запускался)
+    #   или True (успешный старт) → bucket_exists (1 дешёвый S3-вызов
+    #   вместо ensure_bucket на каждый healthcheck).
+    minio_ready = getattr(app.state, "minio_ready", None)
+    if minio_ready is False:
+        minio_ok = False
+    else:
+        try:
+            minio_ok = await asyncio.to_thread(storage.bucket_exists)
+        except Exception:
+            logger.exception("Health: MinIO unavailable")
+            minio_ok = False
+            
     if db_ok and redis_ok and minio_ok:
         return {
             "status": "healthy",

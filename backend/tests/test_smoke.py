@@ -68,3 +68,24 @@ async def test_health_unhealthy_when_redis_down(
     assert body["redis"] == "unavailable"
     assert body["database"] == "connected"
     assert body["minio"] == "connected"
+
+@pytest.mark.asyncio
+async def test_health_unhealthy_when_minio_down(client, mocker):
+    """CLN-012: если MinIO недоступен — 503, но с детализацией."""
+    from app.main import app as fastapi_app
+    from app.services.storage_service import MinioStorage, get_storage
+
+    broken_storage = mocker.Mock(spec=MinioStorage)
+    broken_storage.bucket_exists = mocker.Mock(
+        side_effect=Exception("MinIO down")
+    )
+
+    fastapi_app.dependency_overrides[get_storage] = lambda: broken_storage
+
+    response = await client.get("/health")
+    assert response.status_code == 503
+    body = response.json()
+    assert body["status"] == "unhealthy"
+    assert body["database"] == "connected"
+    assert body["redis"] == "connected"
+    assert body["minio"] == "unavailable"

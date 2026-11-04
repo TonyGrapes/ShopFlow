@@ -186,6 +186,16 @@ class MinioStorage(BaseStorage):
             size /= 1024.0
         return f"{size:.2f} PB"
 
+    def bucket_exists(self) -> bool:
+        """
+        CLN-012: дешёвая проверка для /health.
+
+        Возвращает True, если bucket существует. НЕ создаёт, НЕ применяет policy.
+        Используется в /health, чтобы не дёргать ensure_bucket (create + set_policy)
+        на каждый healthcheck — это дорого и ненадёжно.
+        """
+        return self._client.bucket_exists(self._bucket)
+
 
 def _unwrap_secret(value):
     if hasattr(value, "get_secret_value"):

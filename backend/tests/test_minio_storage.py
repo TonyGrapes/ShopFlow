@@ -198,3 +198,32 @@ class TestMakeObjectKey:
         for allowed in ["image.jpg", "photo.png", "anim.gif", "pic.webp"]:
             key = make_object_key(allowed, product_id=1)
             assert key.startswith("products/1/")
+
+class TestBucketExists:
+    """CLN-012: лёгкая проверка для /health."""
+
+    def test_bucket_exists_true(self):
+        """bucket_exists возвращает True, если бакет есть."""
+        client = Mock()
+        client.bucket_exists = Mock(return_value=True)
+        storage = MinioStorage(client, "test-bucket")
+
+        assert storage.bucket_exists() is True
+        client.bucket_exists.assert_called_once_with("test-bucket")
+
+    def test_bucket_exists_false(self):
+        """bucket_exists возвращает False, если бакета нет."""
+        client = Mock()
+        client.bucket_exists = Mock(return_value=False)
+        storage = MinioStorage(client, "test-bucket")
+
+        assert storage.bucket_exists() is False
+
+    def test_bucket_exists_propagates_error(self):
+        """bucket_exists пробрасывает исключение (не глотает)."""
+        client = Mock()
+        client.bucket_exists = Mock(side_effect=Exception("S3 down"))
+        storage = MinioStorage(client, "test-bucket")
+
+        with pytest.raises(Exception, match="S3 down"):
+            storage.bucket_exists()
