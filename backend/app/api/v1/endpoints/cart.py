@@ -19,6 +19,7 @@ from app.api.v1.deps import (
     get_guest_cart_store,
 )
 from app.core.config import get_settings
+from app.core.exceptions import ValidationError
 from app.db.session import get_db
 from app.schemas.cart import CartItemCreate, CartItemUpdate, CartResponse
 from app.schemas.promo import PromoCodePreviewRequest, PromoCodePreviewResponse
@@ -200,18 +201,16 @@ async def apply_promo_preview(
     - 401: битый Bearer (не маскируем под гостя).
     - 503: Redis недоступен (только для гостя).
     """
-    # Читаем корзину — используем ту же логику, что в GET /cart
     cart = await _read_cart(owner, db, guest_store)
 
     if cart.total_items == 0:
-        raise HTTPException(
-            status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail={
-                "code": "empty_cart",
-                "message": "Cart is empty, nothing to apply promo to",
-            },
+        # CLN-011.1: dict-detail -> ValidationError. app_error_handler
+        # returns {"detail": str, "code": str, **extra}; frontend reads
+        # body.detail as string (client.ts:65-72).
+        raise ValidationError(
+            "Cart is empty, nothing to apply promo to",
+            code="empty_cart",
         )
-
     # Валидация + расчёт. Без reserve.
     promo, discount = await promo_service.validate_and_calculate(
         db=db,

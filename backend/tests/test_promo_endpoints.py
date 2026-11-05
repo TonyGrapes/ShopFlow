@@ -76,15 +76,19 @@ class TestApplyPromoPreview:
     async def test_preview_empty_cart_422(
         self, client, auth_headers, promo_code
     ):
-        """Пустая корзина → 422 empty_cart."""
+        """Пустая корзина → 422 empty_cart (CLN-011.1: плоский формат)."""
         response = await client.post(
             "/api/v1/cart/apply-promo",
             json={"code": "SUMMER10"},
             headers=auth_headers,
         )
         assert response.status_code == 422
-        assert response.json()["detail"]["code"] == "empty_cart"
+        body = response.json()
+        # app_error_handler: {"detail": str, "code": str}
+        assert body["code"] == "empty_cart"
+        assert body["detail"] == "Cart is empty, nothing to apply promo to"
 
+        
     @pytest.mark.asyncio
     async def test_preview_unknown_code_422(
         self, client, auth_headers, cart_with_one_item
