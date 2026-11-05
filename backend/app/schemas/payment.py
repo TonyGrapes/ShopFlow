@@ -11,6 +11,7 @@ from uuid import UUID
 from pydantic import BaseModel, ConfigDict, Field
 
 from app.db.enum import PaymentMethod, PaymentStatus
+from app.schemas.common import Money
 
 
 class PaymentRequest(BaseModel):
@@ -27,7 +28,7 @@ class PaymentRequest(BaseModel):
 class PaymentResponse(BaseModel):
     public_id: UUID
     status: PaymentStatus
-    amount: str          # Decimal → строка
+    amount: Money
     currency: str
     method: PaymentMethod
     external_id: str | None

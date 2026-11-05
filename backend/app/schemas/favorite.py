@@ -1,7 +1,8 @@
-# app/schemas/favorite.py
 from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.schemas.common import Money
 
 
 class FavoriteCreate(BaseModel):
@@ -16,6 +17,6 @@ class FavoriteResponse(BaseModel):
     product_id: int
     product_name: str
     cover_url: str | None = None
-    cost: str
+    cost: Money
     status: str
     created_at: datetime

@@ -223,7 +223,7 @@ async def apply_promo_preview(
     return PromoCodePreviewResponse(
         code=promo.code,
         discount_type=promo.discount_type,
-        discount_value=f"{promo.discount_value:.2f}",
+        discount_value=promo.discount_value,
         subtotal=cart.total_cost,
         discount_amount=discount,
         final_total=final_total,

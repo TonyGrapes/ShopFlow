@@ -154,7 +154,7 @@ def serialize_payment(payment: Payment) -> PaymentResponse:
     return PaymentResponse(
         public_id=payment.public_id,
         status=payment.status,
-        amount=f"{payment.amount:.2f}",
+        amount=payment.amount,
         currency=payment.currency,
         method=payment.payment_method,
         external_id=payment.external_id,

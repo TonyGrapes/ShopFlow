@@ -1,4 +1,3 @@
-# app/schemas/promo.py
 """
 Схемы промокодов.
 
@@ -24,7 +23,7 @@ class PromoCodePreviewResponse(BaseModel):
     """
     code: str
     discount_type: DiscountType
-    discount_value: str      # Decimal → строка
+    discount_value: Money
     subtotal: Money
     discount_amount: Money
     final_total: Money

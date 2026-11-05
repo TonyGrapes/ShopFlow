@@ -28,7 +28,7 @@ def _serialize(fav: Favorite, product: Product) -> FavoriteResponse:
         product_id=product.id,
         product_name=product.name,
         cover_url=storage.get_url(product.cover_key) if product.cover_key else None,
-        cost=f"{product.cost:.2f}",
+        cost=product.cost,
         status=product.status.value,
         created_at=fav.created_at,
     )
