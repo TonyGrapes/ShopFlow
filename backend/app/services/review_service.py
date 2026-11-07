@@ -23,7 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
-from app.db.enum import OrderStatus
+from app.db.enum import OrderStatus, ReviewSortBy, SortOrder
 from app.db.errors import is_unique_violation
 from app.models.order import Order
 from app.models.order_item import OrderItem
@@ -139,10 +139,15 @@ async def create_review(
 #  Чтение отзывов товара
 # ============================================================
 
-_SORT_COLUMNS = {
-    "created_at": Review.created_at,
-    "rating": Review.rating,
+_SORT_COLUMNS: dict[ReviewSortBy, object] = {
+    ReviewSortBy.CREATED_AT: Review.created_at,
+    ReviewSortBy.RATING: Review.rating,
 }
+# Fail-fast: if a member is added to ReviewSortBy but not to _SORT_COLUMNS,
+# the module fails to import — better than a silent fallback to Review.created_at.
+assert set(_SORT_COLUMNS) == set(ReviewSortBy), (
+    "ReviewSortBy and _SORT_COLUMNS are out of sync"
+)
 
 
 async def list_product_reviews(
@@ -150,8 +155,8 @@ async def list_product_reviews(
     product_id: int,
     page: int = 1,
     page_size: int = 20,
-    sort_by: str = "created_at",
-    sort_order: str = "desc",
+    sort_by: ReviewSortBy = ReviewSortBy.CREATED_AT,
+    sort_order: SortOrder = SortOrder.DESC,
 ) -> tuple[list[Review], int]:
     """
     Список активных отзывов товара.
@@ -159,8 +164,8 @@ async def list_product_reviews(
     sort_by из белого списка (_SORT_COLUMNS). Иначе — дефолт created_at.
     Tie-breaker: id DESC — детерминированный порядок.
     """
-    sort_column = _SORT_COLUMNS.get(sort_by, Review.created_at)
-    order_func = desc if sort_order == "desc" else asc
+    sort_column = _SORT_COLUMNS[sort_by]
+    order_func = desc if sort_order is SortOrder.DESC else asc
 
     base_query = select(Review).where(
         Review.product_id == product_id,

@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import User, get_current_active_user
+from app.db.enum import ReviewSortBy, SortOrder
 from app.db.session import get_db
 from app.schemas.common import Paginated
 from app.schemas.review import (
@@ -41,8 +42,8 @@ async def list_product_reviews(
     product_id: int,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    sort_by: str = Query("created_at", pattern="^(created_at|rating)$"),
-    sort_order: str = Query("desc", pattern="^(asc|desc)$"),
+    sort_by: ReviewSortBy = Query(ReviewSortBy.CREATED_AT),
+    sort_order: SortOrder = Query(SortOrder.DESC),
     db: AsyncSession = Depends(get_db),
 ):
     """

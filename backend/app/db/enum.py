@@ -53,4 +53,20 @@ class DiscountType(StrEnum):
     PERCENTAGE = "percentage"
     FIXED = "fixed"
     FREE_SHIPPING = "free_shipping"
+
+class SortOrder(StrEnum):
+    ASC = "asc"
+    DESC = "desc"
+
+
+class ProductSortBy(StrEnum):
+    ID = "id"
+    NAME = "name"
+    COST = "cost"
+    CREATED_AT = "created_at"
+
+
+class ReviewSortBy(StrEnum):
+    CREATED_AT = "created_at"
+    RATING = "rating"
     

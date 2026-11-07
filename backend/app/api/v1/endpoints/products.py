@@ -25,7 +25,7 @@ from app.api.v1.deps import (
     require_roles,
 )
 from app.core.config import get_settings
-from app.db.enum import ProductStatus, UserRole
+from app.db.enum import ProductSortBy, ProductStatus, SortOrder, UserRole
 from app.db.session import get_db
 from app.models.product import Product, ProductImage
 from app.schemas.common import Paginated
@@ -74,8 +74,8 @@ async def list_products(
     min_cost: Decimal | None = Query(None, ge=0, description="Минимальная цена"),
     max_cost: Decimal | None = Query(None, ge=0, description="Максимальная цена"),
     status_filter: ProductStatus | None = Query(None, alias="status"),
-    sort_by: str = Query("id", pattern="^(id|name|cost|created_at)$"),
-    sort_order: str = Query("asc", pattern="^(asc|desc)$"),
+    sort_by: ProductSortBy = Query(ProductSortBy.ID),
+    sort_order: SortOrder = Query(SortOrder.ASC),
     include_deleted: bool = Depends(require_deleted_access),
     db: AsyncSession = Depends(get_db),
     cache: CacheService = Depends(get_cache_service),

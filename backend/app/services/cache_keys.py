@@ -10,7 +10,7 @@
 import hashlib
 from decimal import Decimal
 
-from app.db.enum import ProductStatus
+from app.db.enum import ProductSortBy, ProductStatus, SortOrder
 
 _PREFIX = "products:list"
 _NULL_MARKER = "_"          # пустая строка в URL может быть легитимна → используем явный маркер
@@ -23,7 +23,11 @@ def _normalize(value) -> str:
     if isinstance(value, Decimal):
         # ✅ Decimal("100") и Decimal("100.00") → "100.00"
         return f"{value:.2f}"
-    if isinstance(value, ProductStatus):
+    # CLN-015: explicit enum branch. StrEnum.__str__ already returns .value,
+    # but relying on that is fragile: a refactor to `class X(str, Enum)`
+    # would silently change the key from "cost" to "ProductSortBy.COST",
+    # invalidating every cached response. Handle all enums uniformly.
+    if isinstance(value, (ProductStatus, ProductSortBy, SortOrder)):
         return value.value
     return str(value)
 

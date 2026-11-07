@@ -4,7 +4,7 @@ import pytest
 from pydantic import ValidationError
 
 from app.core.exceptions import ValidationError as DomainValidationError
-from app.db.enum import ProductStatus
+from app.db.enum import ProductSortBy, ProductStatus, SortOrder
 from app.models.product import Product, ProductImage
 from app.schemas.product import ProductCreate
 from app.services import product_service
@@ -316,7 +316,7 @@ class TestListProductsFilters:
         await db_session.flush()
 
         items, _ = await product_service.list_products(
-            db_session, sort_by="cost", sort_order="desc"
+            db_session, sort_by=ProductSortBy.COST, sort_order=SortOrder.DESC
         )
 
         costs = [p.cost for p in items]

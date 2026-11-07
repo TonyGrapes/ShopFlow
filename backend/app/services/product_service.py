@@ -9,7 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.exceptions import ConflictError, ValidationError
-from app.db.enum import ProductStatus
+from app.db.enum import ProductSortBy, ProductStatus, SortOrder
 from app.db.errors import is_unique_violation
 from app.models.category import Category
 from app.models.product import Product
@@ -27,7 +27,17 @@ logger = logging.getLogger(__name__)
 
 # ✅ Имя партиального индекса уникальности активного имени товара
 _ACTIVE_NAME_CONSTRAINT = "idx_product_active_name"
-
+_SORT_COLUMNS: dict[ProductSortBy, object] = {
+    ProductSortBy.ID: Product.id,
+    ProductSortBy.NAME: Product.name,
+    ProductSortBy.COST: Product.cost,
+    ProductSortBy.CREATED_AT: Product.created_at,
+}
+# Fail-fast: if a member is added to ProductSortBy but not to _SORT_COLUMNS,
+# the module fails to import — better than a silent fallback to Product.id.
+assert set(_SORT_COLUMNS) == set(ProductSortBy), (
+    "ProductSortBy and _SORT_COLUMNS are out of sync"
+)
 
 async def list_products(
     db: AsyncSession,
@@ -37,9 +47,9 @@ async def list_products(
     min_cost: Decimal | None = None,
     max_cost: Decimal | None = None,
     status: ProductStatus | None = None,
-    sort_by: str = "id",
-    sort_order: str = "asc",
-    include_deleted: bool = False,      # ← НОВОЕ
+    sort_by: ProductSortBy = ProductSortBy.ID,
+    sort_order: SortOrder = SortOrder.ASC,
+    include_deleted: bool = False,
 ) -> tuple[list[Product], int]:
     base_query = select(Product)
     if not include_deleted:
@@ -59,13 +69,8 @@ async def list_products(
     total = (await db.execute(count_query)).scalar_one()
 
     # Сортировка
-    sort_column = {
-        "id": Product.id,
-        "name": Product.name,
-        "cost": Product.cost,
-        "created_at": Product.created_at,
-    }.get(sort_by, Product.id)
-    order_func = desc if sort_order == "desc" else asc
+    sort_column = _SORT_COLUMNS[sort_by]
+    order_func = desc if sort_order is SortOrder.DESC else asc
 
     # Items
     items_query = (

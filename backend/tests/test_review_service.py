@@ -15,7 +15,7 @@ from decimal import Decimal
 import pytest
 
 from app.core.exceptions import ConflictError, ForbiddenError, NotFoundError
-from app.db.enum import OrderStatus
+from app.db.enum import OrderStatus, ReviewSortBy, SortOrder
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.review import Review
@@ -254,7 +254,7 @@ class TestListProductReviews:
         await db_session.flush()
 
         items, total = await review_service.list_product_reviews(
-            db_session, product.id, sort_by="rating", sort_order="desc"
+            db_session, product.id, sort_by=ReviewSortBy.RATING, sort_order=SortOrder.DESC
         )
         assert total == 2
         assert items[0].rating == 5

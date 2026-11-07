@@ -60,6 +60,29 @@ class TestCacheKeys:
         )
         assert "products:list:" in k
 
+    def test_sort_enums_normalized_to_value(self):
+        """CLN-015: SortOrder / ProductSortBy — через .value, не str(enum).
+
+        Если кто-то переименует StrEnum в (str, Enum) — str(enum) даст
+        'ProductSortBy.COST' вместо 'cost', и кэш-ключ изменится.
+        Этот тест ловит такой регресс.
+        """
+        from app.db.enum import ProductSortBy, SortOrder
+
+        k_enum = build_product_list_cache_key(
+            **self._base_kwargs(
+                sort_by=ProductSortBy.COST,
+                sort_order=SortOrder.DESC,
+            )
+        )
+        k_str = build_product_list_cache_key(
+            **self._base_kwargs(
+                sort_by="cost",
+                sort_order="desc",
+            )
+        )
+        assert k_enum == k_str
+
     def test_pattern_covers_all(self):
         """Паттерн начинается с префикса ключа."""
         k = build_product_list_cache_key(**self._base_kwargs())
