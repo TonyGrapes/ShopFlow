@@ -1,0 +1,274 @@
+/* src/prototypes/catalog-ux/styles/ProductCard.module.css */
+.card {
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  transition: transform var(--dur-base) var(--ease),
+    box-shadow var(--dur-base) var(--ease),
+    border-color var(--dur-base) var(--ease);
+  animation: rise var(--dur-base) var(--ease) both;
+  animation-delay: calc(var(--i, 0) * 45ms);
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--color-border-strong);
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.media {
+  position: relative;
+  aspect-ratio: 1;
+  background: var(--color-surface-2);
+  overflow: hidden;
+}
+
+.mediaButton {
+  display: block;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: none;
+  background: none;
+}
+
+.image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: transform 500ms var(--ease);
+}
+
+.card:hover .image {
+  transform: scale(1.06);
+}
+
+.badges {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-3);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.statusBadge,
+.discountBadge {
+  padding: 4px 10px;
+  border-radius: var(--radius-pill);
+  font-size: 12px;
+  font-weight: 700;
+  backdrop-filter: blur(6px);
+}
+
+.success {
+  background: var(--success-soft);
+  color: var(--success);
+}
+
+.warning {
+  background: var(--warning-soft);
+  color: var(--warning);
+}
+
+.muted {
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+}
+
+.discountBadge {
+  background: var(--danger);
+  color: #fff;
+}
+
+.favorite {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: none;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-surface) 82%, transparent);
+  color: var(--color-text-muted);
+  backdrop-filter: blur(6px);
+  transition: transform var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.favorite:hover {
+  transform: scale(1.1);
+  color: var(--danger);
+}
+
+.favoriteActive {
+  color: var(--danger);
+}
+
+.quickView {
+  position: absolute;
+  left: var(--space-3);
+  right: var(--space-3);
+  bottom: var(--space-3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: 40px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-size: 14px;
+  font-weight: 600;
+  opacity: 0;
+  transform: translateY(12px);
+  transition: opacity var(--dur-base) var(--ease),
+    transform var(--dur-base) var(--ease);
+}
+
+.card:hover .quickView,
+.card:focus-within .quickView {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  flex: 1;
+}
+
+.category {
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-muted);
+}
+
+.name {
+  border: none;
+  background: none;
+  padding: 0;
+  text-align: left;
+  font-size: 15px;
+  font-weight: 600;
+  line-height: 1.35;
+  color: var(--color-text);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  min-height: 2.7em;
+  transition: color var(--dur-fast) var(--ease);
+}
+
+.name:hover {
+  color: var(--accent-text);
+}
+
+.priceRow {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+  margin-top: auto;
+}
+
+.price {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+}
+
+.oldPrice {
+  font-size: 14px;
+  color: var(--color-text-muted);
+  text-decoration: line-through;
+}
+
+.addButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: 44px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 700;
+  transition: background var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease);
+}
+
+.addButton:hover:not(:disabled) {
+  background: var(--accent-hover);
+  transform: translateY(-1px);
+}
+
+.addButton:disabled {
+  background: var(--color-surface-2);
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.stepper {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 44px;
+  border: 1px solid var(--accent);
+  border-radius: var(--radius-md);
+  background: var(--accent-soft);
+  overflow: hidden;
+}
+
+.stepperButton {
+  width: 46px;
+  height: 100%;
+  border: none;
+  background: none;
+  color: var(--accent-text);
+  font-size: 20px;
+  font-weight: 700;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.stepperButton:hover {
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+}
+
+.stepperValue {
+  font-weight: 700;
+  color: var(--accent-text);
+}
+
+.detailsLink {
+  align-self: start;
+  color: var(--accent-text);
+  font-size: 13px;
+  font-weight: 600;
+  text-underline-offset: 3px;
+}
+
+.detailsLink:hover {
+  text-decoration: none;
+}

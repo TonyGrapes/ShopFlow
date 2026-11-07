@@ -1,0 +1,116 @@
+/* src/prototypes/catalog-ux/styles/tokens.css
+   Дизайн-токены прототипа. Повторяют бренд-акцент основного проекта
+   (#aa3bff) и поддерживают тёмную тему. Сетка отступов — кратна 4px. */
+
+:root {
+  /* Палитра */
+  --color-bg: #f7f7f9;
+  --color-surface: #ffffff;
+  --color-surface-2: #f2f1f5;
+  --color-text: #14161a;
+  --color-text-muted: #6b6375;
+  --color-border: #e5e4e7;
+  --color-border-strong: #cfcfd6;
+
+  --accent: #aa3bff;
+  --accent-hover: #9626e6;
+  --accent-text: #7a17c9;
+  --accent-soft: rgba(170, 59, 255, 0.12);
+  --accent-contrast: #ffffff;
+
+  --success: #1a7f4b;
+  --success-soft: rgba(26, 127, 75, 0.12);
+  --warning: #9a6700;
+  --warning-soft: rgba(154, 103, 0, 0.14);
+  --danger: #c02626;
+  --danger-soft: rgba(192, 38, 38, 0.12);
+
+  /* Отступы (8px grid) */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+
+  /* Радиусы */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
+  --radius-pill: 999px;
+
+  /* Тени */
+  --shadow-sm: 0 1px 2px rgba(16, 15, 20, 0.06);
+  --shadow-md: 0 6px 18px -6px rgba(16, 15, 20, 0.18);
+  --shadow-lg: 0 22px 48px -20px rgba(16, 15, 20, 0.32);
+
+  /* Типографика */
+  --font-sans: system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+
+  /* Анимации */
+  --dur-fast: 150ms;
+  --dur-base: 220ms;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+
+  /* Layout */
+  --container: 1320px;
+  --sidebar-width: 264px;
+  --header-height: 64px;
+  --focus-ring: 0 0 0 3px var(--accent-soft), 0 0 0 2px var(--accent);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #0f1014;
+    --color-surface: #16171d;
+    --color-surface-2: #1f2028;
+    --color-text: #eceef2;
+    --color-text-muted: #9ca3af;
+    --color-border: #2e303a;
+    --color-border-strong: #3d404d;
+
+    --accent: #c084fc;
+    --accent-hover: #d0a1ff;
+    --accent-text: #d8b4fe;
+    --accent-soft: rgba(192, 132, 252, 0.16);
+    --accent-contrast: #1a1030;
+
+    --success: #4ade80;
+    --success-soft: rgba(74, 222, 128, 0.14);
+    --warning: #fbbf24;
+    --warning-soft: rgba(251, 191, 36, 0.14);
+    --danger: #f87171;
+    --danger-soft: rgba(248, 113, 113, 0.14);
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+    --shadow-md: 0 10px 24px -8px rgba(0, 0, 0, 0.6);
+    --shadow-lg: 0 26px 60px -22px rgba(0, 0, 0, 0.75);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root {
+    --dur-fast: 0ms;
+    --dur-base: 0ms;
+  }
+}
+
+/* ------------------------------------------------------------------
+   Legacy aliases used by the existing storefront stylesheet.
+   New feature code should use the semantic --color-* / --accent-* tokens.
+   ------------------------------------------------------------------ */
+:root {
+  --text: var(--color-text-muted);
+  --text-h: var(--color-text);
+  --bg: var(--color-bg);
+  --border: var(--color-border);
+  --code-bg: var(--color-surface-2);
+  --accent-bg: var(--accent-soft);
+  --accent-border: color-mix(in srgb, var(--accent) 50%, transparent);
+  --sans: var(--font-sans);
+  --heading: var(--font-sans);
+  --mono: ui-monospace, Consolas, monospace;
+  --shadow: var(--shadow-md);
+}

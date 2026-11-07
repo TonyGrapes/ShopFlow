@@ -8,6 +8,11 @@
  * Синхронность проверяется тестом
  * tests/test_openapi_matches_frontend_types.py (на backend).
  */
+import type { Money } from "./common";
+
+// Money и Paginated вынесены в common.ts, но реэкспортируются
+// для обратной совместимости с существующими импортами.
+export type { Money, Paginated } from "./common";
 
 // ============================================================
 //  app/db/enum.py — ProductStatus
@@ -16,22 +21,6 @@ export type ProductStatus =
   | "out_of_stock"
   | "available"
   | "discontinued";
-
-// ============================================================
-//  app/schemas/common.py — Money
-// ============================================================
-// Decimal сериализуется как строка ("100.00")
-export type Money = string;
-
-// ============================================================
-//  app/schemas/common.py — Paginated[T]
-// ============================================================
-export interface Paginated<T> {
-  items: T[];
-  total: number;
-  page: number;
-  page_size: number;
-}
 
 // ============================================================
 //  app/schemas/product.py — CategoryBrief
@@ -58,6 +47,15 @@ export interface ProductListItem {
   cost: Money;
   status: ProductStatus;
   cover_url: string | null;
+  category: CategoryBrief | null;
+}
+
+// ============================================================
+//  app/schemas/product.py — ProductPriceRange
+// ============================================================
+export interface ProductPriceRange {
+  min_cost: Money | null;
+  max_cost: Money | null;
 }
 
 // ============================================================
@@ -82,6 +80,7 @@ export interface ProductResponse {
 export interface ProductListParams {
   page?: number;
   page_size?: number;
+  q?: string;
   category_id?: number;
   min_cost?: Money;
   max_cost?: Money;

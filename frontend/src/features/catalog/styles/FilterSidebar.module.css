@@ -1,0 +1,336 @@
+/* src/prototypes/catalog-ux/styles/FilterSidebar.module.css */
+.sidebar {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  padding: var(--space-5);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.title {
+  font-size: 18px;
+}
+
+.resetLink {
+  border: none;
+  background: none;
+  padding: 0;
+  color: var(--accent-text);
+  font-size: 14px;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.group {
+  padding-top: var(--space-5);
+  margin-top: var(--space-5);
+  border-top: 1px solid var(--color-border);
+}
+
+.groupTitle {
+  font-size: 14px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-4);
+}
+
+/* ---------- Диапазон цены ---------- */
+.range {
+  padding-top: var(--space-2);
+}
+
+.rangeValues {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+  margin-bottom: var(--space-3);
+}
+
+.rangeTrack {
+  position: relative;
+  height: 32px;
+}
+
+.rangeTrack::before {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: var(--radius-pill);
+  background: var(--color-surface-2);
+  border: 1px solid var(--color-border);
+}
+
+.rangeFill {
+  position: absolute;
+  top: 50%;
+  height: 4px;
+  transform: translateY(-50%);
+  border-radius: var(--radius-pill);
+  background: var(--accent);
+}
+
+.rangeInput {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 32px;
+  margin: 0;
+  background: none;
+  appearance: none;
+  pointer-events: none;
+}
+
+.rangeInput::-webkit-slider-thumb {
+  appearance: none;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  border: 3px solid var(--accent);
+  box-shadow: var(--shadow-sm);
+  pointer-events: auto;
+  cursor: pointer;
+  transition: transform var(--dur-fast) var(--ease);
+}
+
+.rangeInput::-webkit-slider-thumb:hover {
+  transform: scale(1.1);
+}
+
+.rangeInput::-moz-range-thumb {
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: var(--color-surface);
+  border: 3px solid var(--accent);
+  box-shadow: var(--shadow-sm);
+  pointer-events: auto;
+  cursor: pointer;
+}
+
+.rangeInput::-moz-range-track {
+  background: none;
+}
+
+/* ---------- Статус ---------- */
+.statusFieldset {
+  border: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-1);
+}
+
+.radio {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-height: 40px;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease);
+}
+
+.radio:hover {
+  background: var(--color-surface-2);
+}
+
+.radio input {
+  width: 18px;
+  height: 18px;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
+.radio span {
+  font-size: 15px;
+}
+
+/* ---------- Чипы активных фильтров ---------- */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  list-style: none;
+  margin: 0 0 var(--space-4);
+  padding: 0;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 4px 4px 4px 12px;
+  border-radius: var(--radius-pill);
+  background: var(--accent-soft);
+  color: var(--accent-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.chipRemove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: inherit;
+  font-size: 16px;
+  line-height: 1;
+}
+
+.chipRemove:hover {
+  background: var(--accent);
+  color: var(--accent-contrast);
+}
+
+/* ---------- Кнопки сброса ---------- */
+.resetButton {
+  width: 100%;
+  margin-top: var(--space-5);
+  height: 44px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-weight: 600;
+  transition: border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.resetButton:hover {
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+/* ---------- Мобильный drawer ---------- */
+.drawerRoot {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+}
+
+.drawerOverlay {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 9, 14, 0.5);
+  animation: fade var(--dur-base) var(--ease);
+}
+
+.drawerPanel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: 88vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-bg);
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shadow-lg);
+  animation: slideUp var(--dur-base) var(--ease);
+}
+
+.drawerTop {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.drawerTitle {
+  font-size: 17px;
+  font-weight: 700;
+}
+
+.drawerClose {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.drawerBody {
+  overflow-y: auto;
+  padding: var(--space-2) var(--space-4) var(--space-5);
+}
+
+.drawerBody > div {
+  border: none;
+  padding: 0 var(--space-1);
+}
+
+.drawerFooter {
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.drawerApply {
+  width: 100%;
+  height: 48px;
+  border: none;
+  border-radius: var(--radius-md);
+  background: var(--accent);
+  color: var(--accent-contrast);
+  font-weight: 700;
+}
+
+@keyframes fade {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+  }
+}
+
+.selectWrap {
+  display: block;
+}
+
+.select {
+  width: 100%;
+  height: 44px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.select:focus {
+  border-color: var(--accent);
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.rangeEmpty {
+  color: var(--color-text-muted);
+  font-size: 14px;
+}

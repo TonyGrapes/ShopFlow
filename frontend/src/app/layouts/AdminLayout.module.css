@@ -1,0 +1,79 @@
+.shell {
+  min-height: 100vh;
+  background: var(--color-bg);
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+  min-height: var(--header-height);
+  padding: 0 var(--space-5);
+  border-bottom: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.brand {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--color-text);
+  text-decoration: none;
+}
+
+.brand span {
+  color: var(--accent-text);
+}
+
+.nav {
+  display: flex;
+  gap: var(--space-1);
+}
+
+.link {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.link:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+
+.linkActive {
+  background: var(--accent-soft);
+  color: var(--accent-text);
+}
+
+.actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.storeLink {
+  color: var(--accent-text);
+  font-weight: 600;
+}
+
+.user {
+  color: var(--color-text-muted);
+}
+
+.logout {
+  height: 36px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: transparent;
+}
+
+.main {
+  max-width: var(--container);
+  margin: 0 auto;
+  padding: var(--space-6) var(--space-5);
+}

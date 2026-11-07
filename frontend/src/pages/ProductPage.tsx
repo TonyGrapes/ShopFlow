@@ -3,6 +3,8 @@ import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { fetchProduct } from "../api/products";
 import { ApiError } from "../api/client";
+import { AddToCartButton } from "../components/AddToCartButton";
+import { FavoriteButton } from "../components/FavoriteButton";
 import { LoadingState } from "../components/LoadingState";
 import { ErrorState } from "../components/ErrorState";
 import type { ProductResponse } from "../types/product";
@@ -102,6 +104,16 @@ export function ProductPage() {
               Категория: {product.category.category_name}
             </p>
           )}
+
+          <div className="product-page__actions">
+            <AddToCartButton
+              productId={product.id}
+              available={product.status === "available"}
+              className="btn btn--primary"
+            />
+            <FavoriteButton productId={product.id} />
+          </div>
+
           <p className="product-page__description">{product.description}</p>
         </div>
       </div>

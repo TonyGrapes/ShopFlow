@@ -4,6 +4,7 @@ import type {
   Paginated,
   ProductListParams,
   ProductListItem,
+  ProductPriceRange,
   ProductResponse,
 } from "../types/product";
 
@@ -14,6 +15,15 @@ export async function fetchProductList(
   params: ProductListParams = {}
 ): Promise<Paginated<ProductListItem>> {
   return apiGet<Paginated<ProductListItem>>("/api/v1/products", params);
+}
+
+/**
+ * GET /api/v1/products/price-range — min/max цены текущего среза каталога.
+ */
+export async function fetchProductPriceRange(
+  params: Pick<ProductListParams, "q" | "category_id" | "status"> = {}
+): Promise<ProductPriceRange> {
+  return apiGet<ProductPriceRange>("/api/v1/products/price-range", params);
 }
 
 /**

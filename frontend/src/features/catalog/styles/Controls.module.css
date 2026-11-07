@@ -1,0 +1,136 @@
+/* src/prototypes/catalog-ux/styles/Controls.module.css */
+.sort {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 15px;
+}
+
+.sortLabel {
+  color: var(--color-text-muted);
+}
+
+.selectWrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.select {
+  appearance: none;
+  height: 44px;
+  padding: 0 40px 0 var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+
+.select:hover {
+  border-color: var(--accent);
+}
+
+.selectIcon {
+  position: absolute;
+  right: 12px;
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+/* ---------- Пагинация ---------- */
+.pagination {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  margin: var(--space-6) 0 var(--space-2);
+}
+
+.pageList {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.pageButton {
+  min-width: 44px;
+  height: 44px;
+  padding: 0 var(--space-2);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  font-weight: 600;
+  transition: border-color var(--dur-fast) var(--ease),
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.pageButton:hover {
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.pageButtonActive,
+.pageButtonActive:hover {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-contrast);
+}
+
+.pageArrow {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+  transition: border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+
+.pageArrow:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent-text);
+}
+
+.pageArrow:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.arrowPrev {
+  transform: rotate(90deg);
+}
+
+.arrowNext {
+  transform: rotate(-90deg);
+}
+
+.pageGap {
+  min-width: 28px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 640px) {
+  .sort {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .select {
+    flex: 1;
+  }
+
+  .pageButton {
+    min-width: 40px;
+    height: 40px;
+  }
+}
