@@ -183,6 +183,21 @@ class TestApplyPromoPreview:
         assert Decimal(body["discount_amount"]) == Decimal("200.00")
         assert Decimal(body["final_total"]) == Decimal("1800.00")
 
+    @pytest.mark.asyncio
+    async def test_preview_case_insensitive(
+        self, client, auth_headers, cart_with_one_item, promo_code
+    ):
+        """Preview с 'summer10' находит SUMMER10 в БД (CLN-014)."""
+        response = await client.post(
+            "/api/v1/cart/apply-promo",
+            json={"code": "summer10"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 200, response.json()
+        body = response.json()
+        assert body["code"] == "SUMMER10"
+        assert Decimal(body["discount_amount"]) == Decimal("200.00")
+
 # ============================================================
 #  POST /orders с promo_code
 # ============================================================

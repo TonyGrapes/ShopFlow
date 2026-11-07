@@ -18,7 +18,7 @@ import logging
 from datetime import UTC, datetime
 from decimal import ROUND_HALF_UP, Decimal
 
-from sqlalchemy import select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.exceptions import ValidationError
@@ -37,16 +37,12 @@ async def validate_and_calculate(
     code: str,
     subtotal: Decimal,
 ) -> tuple[PromoCode, Decimal]:
-    """
-    Находит промокод, валидирует его и считает скидку.
-
-    НЕ мутирует. Не резервирует used_count.
-    Возвращает (promo, discount).
-
-    Бросает 422 с детальным reason при любой проблеме.
-    """
+    # CLN-014: case-insensitive lookup. Strip whitespace, lowercase,
+    # compare with lower(PromoCode.code) — matches the functional index
+    # uq_promo_codes_lower_code.
+    code_normalized = code.strip().lower()
     promo = (await db.execute(
-        select(PromoCode).where(PromoCode.code == code)
+        select(PromoCode).where(func.lower(PromoCode.code) == code_normalized)
     )).scalar_one_or_none()
 
     if promo is None or not promo.is_active:

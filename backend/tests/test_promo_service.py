@@ -16,6 +16,7 @@ from decimal import Decimal
 from types import SimpleNamespace
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app.core.exceptions import ValidationError
 from app.db.enum import DiscountType
@@ -288,3 +289,52 @@ class TestReservePromoUse:
             discount_value=Decimal("100.00"),
         )
         assert _calculate_discount(p, Decimal("1000.00")) == Decimal("1000.00")
+
+class TestCaseInsensitiveLookup:
+    """CLN-014: case-insensitive lookup + DB-level unique on lower(code)."""
+
+    @pytest.mark.asyncio
+    async def test_validate_case_insensitive(self, db_session, promo_code):
+        """SUMMER10 / summer10 / SuMmEr10 / '  summer10  ' — все находят."""
+        for code in ("SUMMER10", "summer10", "SuMmEr10", "  summer10  "):
+            promo, discount = await validate_and_calculate(
+                db_session, code, Decimal("1000.00")
+            )
+            assert promo.code == "SUMMER10"
+            assert discount == Decimal("100.00")
+
+    @pytest.mark.asyncio
+    async def test_duplicate_code_different_case_rejected(self, db_session):
+        """DB-level: 'SUMMER10' и 'summer10' не сосуществуют."""
+        from datetime import datetime, timedelta
+        now = datetime.now(UTC)
+
+        p1 = PromoCode(
+            code="DUPCODE",
+            discount_type=DiscountType.PERCENTAGE,
+            discount_value=Decimal("10.00"),
+            valid_from=now - timedelta(days=1),
+            valid_until=now + timedelta(days=30),
+            is_active=True,
+        )
+        db_session.add(p1)
+        await db_session.flush()
+
+        p2 = PromoCode(
+            code="dupcode",   # lower — должен упасть на unique lower(code)
+            discount_type=DiscountType.PERCENTAGE,
+            discount_value=Decimal("10.00"),
+            valid_from=now - timedelta(days=1),
+            valid_until=now + timedelta(days=30),
+            is_active=True,
+        )
+        db_session.add(p2)
+        try:
+            with pytest.raises(IntegrityError):
+                await db_session.flush()
+        finally:
+            # CLN-014: SQLAlchemy marks the session as "invalid" after an
+            # IntegrityError. Without an explicit rollback, the fixture's
+            # teardown (and any subsequent operation) raises "current
+            # transaction is aborted". Reset here.
+            await db_session.rollback()

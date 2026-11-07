@@ -1,7 +1,17 @@
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import BigInteger, Boolean, CheckConstraint, DateTime, Index, Integer, Numeric, Text
+from sqlalchemy import (
+    BigInteger,
+    Boolean,
+    CheckConstraint,
+    DateTime,
+    Index,
+    Integer,
+    Numeric,
+    Text,
+    text,
+)
 from sqlalchemy import Enum as SAEnum
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -15,11 +25,14 @@ class PromoCode(TimeStampMixin, Base):
     id: Mapped[int] = mapped_column(
         BigInteger, primary_key=True, autoincrement=True, nullable=False
         )    
-    code: Mapped[str] = mapped_column(Text, unique=True, nullable=False)
+    # CLN-014: unique enforced by functional index on lower(code) — see __table_args__.
+    # DB-level UNIQUE on plain `code` was case-sensitive and allowed 'SUMMER10'
+    # and 'summer10' to coexist.
+    code: Mapped[str] = mapped_column(Text, nullable=False)
     
     discount_type: Mapped[DiscountType] = mapped_column(
         SAEnum(
-            DiscountType, name="discount_type", 
+            DiscountType, name="discount_type",
             values_callable=lambda x: [e.value for e in x], create_type=False
             ),
         nullable=False
@@ -40,5 +53,8 @@ class PromoCode(TimeStampMixin, Base):
         ),
         CheckConstraint("discount_value > 0", name="chk_promo_discount_positive"),
         CheckConstraint("valid_until > valid_from", name="chk_promo_valid_dates"),
+        # CLN-014: case-insensitive uniqueness. Lookup by 'summer10' finds
+        # 'SUMMER10'. Replaces the old case-sensitive UNIQUE(code).
+        Index("uq_promo_codes_lower_code", text("lower(code)"), unique=True),
         Index("idx_promo_codes_active", "is_active", postgresql_where=(is_active.is_(True))),
     )
