@@ -48,7 +48,7 @@ import pytest
 import pytest_asyncio
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import CheckConstraint, UniqueConstraint, inspect
+from sqlalchemy import CheckConstraint, Column, UniqueConstraint, inspect
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
@@ -203,17 +203,41 @@ def _collect_drift(metadata, inspector) -> list[str]:
         #      PG автогенерит `<table>_<col>_key` для UNIQUE constraints,
         #      а в модели `unique=True` даёт безымянный UniqueConstraint.
         #      Сравнение по именам даст ложные срабатывания.
+        #
+        #      TST-003.1: functional unique indexes (e.g. lower(code)) —
+        #      особый случай. У них нет «колонок» в обычном смысле:
+        #      модель через idx.columns даёт пустой список (или expression-
+        #      колонки без .name), а Inspector.get_indexes возвращает
+        #      column_names=[None] для expression indexes. Сравнение по
+        #      колонкам даёт ложные срабатывания ([] vs [None]).
+        #      Такие индексы сравниваем отдельно — по именам.
+        def _model_idx_is_functional(idx) -> bool:
+            """True if the Index uses expressions (TextClause/Function) instead
+            of plain columns. idx.columns is EMPTY for expression indexes —
+            check idx.expressions instead."""
+            return any(not isinstance(expr, Column) for expr in idx.expressions)
+
+        def _db_idx_is_functional(db_idx) -> bool:
+            """True if Inspector reports expression columns for this index
+            (None entries or 'lower(code)' strings instead of plain names)."""
+            cols = db_idx.get("column_names") or []
+            return any(
+                n is None or (isinstance(n, str) and "(" in n)
+                for n in cols
+            )
+
+        # 2.4.1. Обычная уникальность — по колонкам (non-functional).
         model_unique: set[frozenset[str]] = {
             frozenset(c.name for c in cst.columns)
             for cst in table.constraints
             if isinstance(cst, UniqueConstraint)
         }
-        # partial unique indexes — тоже "уникальность", но это Index, не UniqueConstraint
         model_unique |= {
             frozenset(c.name for c in idx.columns)
             for idx in table.indexes
-            if idx.unique
+            if idx.unique and not _model_idx_is_functional(idx)
         }
+        model_unique.discard(frozenset())     # пустой набор — не «уникальность»
 
         db_unique: set[frozenset[str]] = {
             frozenset(cst["column_names"])
@@ -223,7 +247,9 @@ def _collect_drift(metadata, inspector) -> list[str]:
             frozenset(idx["column_names"])
             for idx in inspector.get_indexes(table_name)
             if idx.get("unique")
+            and not _db_idx_is_functional(idx)
         }
+        db_unique.discard(frozenset())
 
         if model_unique - db_unique:
             drifts.append(
@@ -234,6 +260,30 @@ def _collect_drift(metadata, inspector) -> list[str]:
             drifts.append(
                 f"{table_name}: unique (by columns) in DB but NOT in model: "
                 f"{sorted(tuple(sorted(s)) for s in db_unique - model_unique)}"
+            )
+
+        # 2.4.2. Functional unique indexes — по именам.
+        #        Их «колонки» не сравнимы между ORM и Inspector.
+        model_functional: set[str] = {
+            idx.name
+            for idx in table.indexes
+            if idx.unique and _model_idx_is_functional(idx) and idx.name
+        }
+        db_functional: set[str] = {
+            idx["name"]
+            for idx in inspector.get_indexes(table_name)
+            if idx.get("unique") and _db_idx_is_functional(idx)
+        }
+
+        if model_functional - db_functional:
+            drifts.append(
+                f"{table_name}: functional unique indexes in model but NOT in DB: "
+                f"{sorted(model_functional - db_functional)}"
+            )
+        if db_functional - model_functional:
+            drifts.append(
+                f"{table_name}: functional unique indexes in DB but NOT in model: "
+                f"{sorted(db_functional - model_functional)}"
             )
 
         # 2.5. Обычные (не-unique) индексы — по ИМЕНАМ.
