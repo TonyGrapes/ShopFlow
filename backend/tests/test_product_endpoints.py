@@ -95,6 +95,81 @@ class TestListProductsEndpoint:
         assert response.status_code == 200
         assert response.json()["total"] == 0
 
+    @pytest.mark.asyncio
+    async def test_list_products_search_by_name_description_category(
+        self, client, db_session, category
+    ):
+        """q ищет по названию, описанию и названию категории."""
+        db_session.add_all([
+            Product(
+                name="Gaming Mouse",
+                description="Wireless",
+                cost=Decimal("50.00"),
+                category_id=category.id,
+            ),
+            Product(
+                name="Keyboard",
+                description="Mechanical gaming switches",
+                cost=Decimal("100.00"),
+                category_id=category.id,
+            ),
+        ])
+        await db_session.flush()
+
+        by_name = await client.get("/api/v1/products?q=mouse")
+        assert by_name.status_code == 200
+        assert by_name.json()["total"] == 1
+        assert by_name.json()["items"][0]["name"] == "Gaming Mouse"
+
+        by_description = await client.get("/api/v1/products?q=mechanical")
+        assert by_description.status_code == 200
+        assert by_description.json()["total"] == 1
+
+        by_category = await client.get("/api/v1/products?q=electronics")
+        assert by_category.status_code == 200
+        assert by_category.json()["total"] == 2
+
+    @pytest.mark.asyncio
+    async def test_list_products_include_category(self, client, product):
+        """ProductListItem содержит brief категории для бейджа."""
+        response = await client.get("/api/v1/products")
+
+        item = response.json()["items"][0]
+        assert item["category"] == {
+            "id": product.category_id,
+            "category_name": "Electronics",
+        }
+
+    @pytest.mark.asyncio
+    async def test_price_range_endpoint(self, client, db_session, category):
+        """GET /products/price-range возвращает min/max текущего среза."""
+        for name, cost in [
+            ("Cheap", Decimal("10.00")),
+            ("Middle", Decimal("100.00")),
+            ("Expensive", Decimal("500.00")),
+        ]:
+            db_session.add(Product(
+                name=name,
+                description="Test",
+                cost=cost,
+                category_id=category.id,
+            ))
+        await db_session.flush()
+
+        response = await client.get("/api/v1/products/price-range")
+        assert response.status_code == 200
+        assert response.json() == {"min_cost": "10.00", "max_cost": "500.00"}
+
+        filtered = await client.get("/api/v1/products/price-range?q=middle")
+        assert filtered.status_code == 200
+        assert filtered.json() == {"min_cost": "100.00", "max_cost": "100.00"}
+
+    @pytest.mark.asyncio
+    async def test_price_range_empty(self, client):
+        response = await client.get("/api/v1/products/price-range")
+        assert response.status_code == 200
+        assert response.json() == {"min_cost": None, "max_cost": None}
+
 
 # ============================================================
 #  GET /api/v1/products/{id}

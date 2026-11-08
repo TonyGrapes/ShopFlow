@@ -1,4 +1,3 @@
-# tests/test_config.py
 """
 Тесты Settings-валидации (CFG-001, CFG-002, CFG-003).
 

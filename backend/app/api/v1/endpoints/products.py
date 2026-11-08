@@ -34,6 +34,7 @@ from app.schemas.product import (
     ProductBulkStatusUpdate,
     ProductCreate,
     ProductListItem,
+    ProductPriceRange,
     ProductResponse,
     ProductUpdate,
 )
@@ -70,6 +71,12 @@ async def list_products(
     response: Response,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    q: str | None = Query(
+        None,
+        min_length=1,
+        max_length=100,
+        description="Поиск по названию, описанию и категории",
+    ),
     category_id: int | None = Query(None, description="Фильтр по категории"),
     min_cost: Decimal | None = Query(None, ge=0, description="Минимальная цена"),
     max_cost: Decimal | None = Query(None, ge=0, description="Максимальная цена"),
@@ -103,6 +110,7 @@ async def list_products(
             min_cost=min_cost,
             max_cost=max_cost,
             status=status_filter,
+            q=q,
             sort_by=sort_by,
             sort_order=sort_order,
             include_deleted=True,
@@ -122,6 +130,7 @@ async def list_products(
         min_cost=min_cost,
         max_cost=max_cost,
         status=status_filter,
+        q=q,
         sort_by=sort_by,
         sort_order=sort_order,
     )
@@ -141,6 +150,7 @@ async def list_products(
         min_cost=min_cost,
         max_cost=max_cost,
         status=status_filter,
+        q=q,
         sort_by=sort_by,
         sort_order=sort_order,
         include_deleted=False,
@@ -217,7 +227,27 @@ async def bulk_update_status(
 
 
 # ============================================================
-#  Read: единичный товар — ПОСЛЕ bulk
+#  Read: границы цен — ДО dynamic {product_id}
+# ============================================================
+
+@router.get("/price-range", response_model=ProductPriceRange)
+async def get_price_range(
+    q: str | None = Query(None, min_length=1, max_length=100),
+    category_id: int | None = Query(None),
+    status_filter: ProductStatus | None = Query(None, alias="status"),
+    db: AsyncSession = Depends(get_db),
+):
+    """Min/max цена для текущего среза каталога."""
+    return await product_service.get_price_range(
+        db,
+        category_id=category_id,
+        status=status_filter,
+        q=q,
+    )
+
+
+# ============================================================
+#  Read: единичный товар — ПОСЛЕ bulk и price-range
 # ============================================================
 
 @router.get("/{product_id}", response_model=ProductResponse)

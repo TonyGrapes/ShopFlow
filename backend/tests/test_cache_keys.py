@@ -20,6 +20,7 @@ class TestCacheKeys:
             "min_cost": None,
             "max_cost": None,
             "status": None,
+            "q": None,
             "sort_by": "id",
             "sort_order": "asc",
         }
@@ -36,6 +37,14 @@ class TestCacheKeys:
         k1 = build_product_list_cache_key(**self._base_kwargs(page=1))
         k2 = build_product_list_cache_key(**self._base_kwargs(page=2))
         assert k1 != k2
+
+    def test_query_changes_key(self):
+        """Поисковый запрос входит в ключ и нормализуется по краям."""
+        k1 = build_product_list_cache_key(**self._base_kwargs(q="laptop"))
+        k2 = build_product_list_cache_key(**self._base_kwargs(q="  laptop  "))
+        k3 = build_product_list_cache_key(**self._base_kwargs(q="phone"))
+        assert k1 == k2
+        assert k1 != k3
 
     def test_decimal_normalization(self):
         """Decimal("100") и Decimal("100.00") → один ключ."""

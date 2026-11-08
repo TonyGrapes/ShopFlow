@@ -3,7 +3,7 @@ import logging
 from datetime import UTC, datetime
 from decimal import Decimal
 
-from sqlalchemy import asc, desc, func, select
+from sqlalchemy import asc, desc, func, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -18,6 +18,7 @@ from app.schemas.product import (
     ProductCreate,
     ProductImageBrief,
     ProductListItem,
+    ProductPriceRange,
     ProductResponse,
     ProductUpdate,
 )
@@ -47,6 +48,7 @@ async def list_products(
     min_cost: Decimal | None = None,
     max_cost: Decimal | None = None,
     status: ProductStatus | None = None,
+    q: str | None = None,
     sort_by: ProductSortBy = ProductSortBy.ID,
     sort_order: SortOrder = SortOrder.ASC,
     include_deleted: bool = False,
@@ -57,6 +59,15 @@ async def list_products(
 
     if category_id is not None:
         base_query = base_query.where(Product.category_id == category_id)
+    if q is not None:
+        pattern = f"%{q.strip()}%"
+        base_query = base_query.where(
+            or_(
+                Product.name.ilike(pattern),
+                Product.description.ilike(pattern),
+                Product.category.has(Category.category_name.ilike(pattern)),
+            )
+        )
     if min_cost is not None:
         base_query = base_query.where(Product.cost >= min_cost)
     if max_cost is not None:
@@ -113,7 +124,41 @@ def serialize_product_list_item(product: Product) -> ProductListItem:
         cost=product.cost,
         status=product.status,
         cover_url=storage.get_url(product.cover_key) if product.cover_key else None,
+        category=(
+            CategoryBrief.model_validate(product.category)
+            if product.category
+            else None
+        ),
     )
+
+
+async def get_price_range(
+    db: AsyncSession,
+    *,
+    category_id: int | None = None,
+    status: ProductStatus | None = None,
+    q: str | None = None,
+) -> ProductPriceRange:
+    """Границы цен для текущего среза каталога (без пагинации)."""
+    query = select(func.min(Product.cost), func.max(Product.cost)).where(
+        Product.deleted_at.is_(None)
+    )
+    if category_id is not None:
+        query = query.where(Product.category_id == category_id)
+    if status is not None:
+        query = query.where(Product.status == status)
+    if q is not None:
+        pattern = f"%{q.strip()}%"
+        query = query.where(
+            or_(
+                Product.name.ilike(pattern),
+                Product.description.ilike(pattern),
+                Product.category.has(Category.category_name.ilike(pattern)),
+            )
+        )
+
+    row = (await db.execute(query)).one()
+    return ProductPriceRange(min_cost=row[0], max_cost=row[1])
 
 # ---------- CRUD ----------
 

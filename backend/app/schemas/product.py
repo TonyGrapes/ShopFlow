@@ -63,7 +63,14 @@ class ProductListItem(BaseModel):
     cost: Money
     status: ProductStatus
     cover_url: str | None = None          # заполняется сервисом
+    category: CategoryBrief | None = None  # для бейджа и фильтра в каталоге
     model_config = ConfigDict(from_attributes=True)
+
+
+class ProductPriceRange(BaseModel):
+    """Минимальная и максимальная цена среди товаров, доступных каталогу."""
+    min_cost: Money | None = None
+    max_cost: Money | None = None
 
 
 class ProductBulkStatusUpdate(BaseModel):

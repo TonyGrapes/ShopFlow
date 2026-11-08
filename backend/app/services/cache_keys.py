@@ -40,6 +40,7 @@ def build_product_list_cache_key(
     min_cost: Decimal | None,
     max_cost: Decimal | None,
     status: ProductStatus | None,
+    q: str | None = None,
     sort_by: str,
     sort_order: str,
 ) -> str:
@@ -56,6 +57,7 @@ def build_product_list_cache_key(
         "min_cost": _normalize(min_cost),
         "max_cost": _normalize(max_cost),
         "status": _normalize(status),
+        "q": _normalize(q.strip() if q is not None else None),
         "sort_by": _normalize(sort_by),
         "sort_order": _normalize(sort_order),
     }
