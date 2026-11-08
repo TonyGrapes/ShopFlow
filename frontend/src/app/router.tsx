@@ -36,7 +36,14 @@ const AdminCategoriesPage = lazyNamed(
   () => import("../features/admin/pages/AdminCategoriesPage"),
   "AdminCategoriesPage"
 );
-
+const AdminProductsPage = lazyNamed(
+  () => import("../features/admin/pages/AdminProductsPage"),
+  "AdminProductsPage"
+);
+const AdminUsersPage = lazyNamed(
+  () => import("../features/admin/pages/AdminUsersPage"),
+  "AdminUsersPage"
+);
 const ADMIN_ROLES: UserRole[] = ["admin", "moderator"];
 
 function lazyNamed(
@@ -90,6 +97,8 @@ export const router = createBrowserRouter([
           { path: "orders", element: page(<AdminOrdersPage />) },
           { path: "categories", element: page(<AdminCategoriesPage />) },
           { path: "profile", element: protectedPage(<ProfilePage />) },
+          { path: "products", element: page(<AdminProductsPage />) },
+          { path: "users", element: page(<AdminUsersPage />) },
         ],
       },
     ],

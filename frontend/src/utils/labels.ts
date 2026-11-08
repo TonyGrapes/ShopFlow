@@ -62,3 +62,22 @@ export function paymentMethodLabel(method: PaymentMethod): string {
       return method;
   }
 }
+
+export function roleLabel(role: string): string {
+  switch (role) {
+    case "customer": return "Клиент";
+    case "moderator": return "Модератор";
+    case "admin": return "Админ";
+    case "seller": return "Продавец";
+    default: return role;
+  }
+}
+
+export function userStatusLabel(status: string): string {
+  switch (status) {
+    case "active": return "Активен";
+    case "banned": return "Забанен";
+    case "pending": return "Ожидает";
+    default: return status;
+  }
+}

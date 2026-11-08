@@ -13,6 +13,19 @@ import type {
   OrderResponse,
   OrderStatus,
 } from "../types/order";
+import type { 
+  ProductListItem,
+  ProductResponse,
+  ProductCreate,
+  ProductUpdate,
+} from "../types/product";
+import type {
+  AdminUserListItem,
+  AdminUserListParams,
+  AdminProductListParams,
+  UserRoleUpdateRequest,
+  UserStatusUpdateRequest,
+} from "../types/admin";
 
 export interface AdminOrderListParams {
   page?: number;
@@ -54,4 +67,64 @@ export function updateCategory(
 
 export function deleteCategory(categoryId: number): Promise<void> {
   return apiDelete<void>(`/api/v1/admin/categories/${categoryId}`);
+}
+
+// ============================================================
+//  Admin products
+// ============================================================
+
+export function listAdminProducts(
+  params: AdminProductListParams = {}
+): Promise<Paginated<ProductListItem>> {
+  return apiGet<Paginated<ProductListItem>>("/api/v1/admin/products", params);
+}
+
+export function createAdminProduct(
+  data: ProductCreate
+): Promise<ProductResponse> {
+  return apiPost<ProductResponse>("/api/v1/admin/products", data);
+}
+
+export function updateAdminProduct(
+  productId: number,
+  data: ProductUpdate
+): Promise<ProductResponse> {
+  return apiPatch<ProductResponse>(
+    `/api/v1/admin/products/${productId}`,
+    data
+  );
+}
+
+export function deleteAdminProduct(productId: number): Promise<void> {
+  return apiDelete<void>(`/api/v1/admin/products/${productId}`);
+}
+
+// ============================================================
+//  Admin users
+// ============================================================
+
+export function listAdminUsers(
+  params: AdminUserListParams = {}
+): Promise<Paginated<AdminUserListItem>> {
+  return apiGet<Paginated<AdminUserListItem>>("/api/v1/admin/users", params);
+}
+
+export function updateUserRole(
+  publicId: string,
+  data: UserRoleUpdateRequest
+): Promise<AdminUserListItem> {
+  return apiPatch<AdminUserListItem>(
+    `/api/v1/admin/users/${publicId}/role`,
+    data
+  );
+}
+
+export function updateUserStatus(
+  publicId: string,
+  data: UserStatusUpdateRequest
+): Promise<AdminUserListItem> {
+  return apiPatch<AdminUserListItem>(
+    `/api/v1/admin/users/${publicId}/status`,
+    data
+  );
 }

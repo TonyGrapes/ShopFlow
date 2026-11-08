@@ -75,6 +75,28 @@ export interface ProductResponse {
 }
 
 // ============================================================
+//  app/schemas/product.py — ProductCreate (ProductBase + status)
+// ============================================================
+export interface ProductCreate {
+  name: string;              // min 3, max 255
+  description: string;       // min 1, max 5000
+  cost: Money;
+  category_id: number;       // gt 0
+  status?: ProductStatus;    // default "available"
+}
+
+// ============================================================
+//  app/schemas/product.py — ProductUpdate (PATCH, всё optional)
+// ============================================================
+export interface ProductUpdate {
+  name?: string | null;
+  description?: string | null;
+  cost?: Money | null;
+  status?: ProductStatus | null;
+  category_id?: number | null;
+}
+
+// ============================================================
 //  Query-параметры для GET /api/v1/products
 // ============================================================
 export interface ProductListParams {
