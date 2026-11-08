@@ -610,3 +610,143 @@ class TestInvalidTokenNeutralDetail:
         )
         assert response.status_code == 401
         assert "expired" in response.json()["detail"].lower()
+
+# ============================================================
+#  Profile update
+# ============================================================
+
+class TestUpdateProfile:
+    @pytest.mark.asyncio
+    async def test_update_profile_happy(
+        self, client, verified_user, auth_headers, db_session
+    ):
+        response = await client.patch(
+            "/api/v1/auth/me",
+            json={"first_name": "Updated"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        assert response.json()["first_name"] == "Updated"
+        await db_session.refresh(verified_user)
+        assert verified_user.first_name == "Updated"
+
+    @pytest.mark.asyncio
+    async def test_update_profile_partial_phone(
+        self, client, auth_headers
+    ):
+        """PATCH-семантика: только phone_number, остальное без изменений."""
+        response = await client.patch(
+            "/api/v1/auth/me",
+            json={"phone_number": "+79991112233"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["first_name"] == "Test"          # не тронуто
+        assert body["phone_number"] == "+79991112233"
+
+    @pytest.mark.asyncio
+    async def test_update_profile_requires_auth(self, client):
+        response = await client.patch(
+            "/api/v1/auth/me", json={"first_name": "H"},
+        )
+        assert response.status_code == 401
+
+    @pytest.mark.asyncio
+    async def test_update_profile_rejects_email(self, client, auth_headers):
+        """email не редактируется через PATCH /me — extra='forbid'."""
+        response = await client.patch(
+            "/api/v1/auth/me",
+            json={"first_name": "H", "email": "hack@example.com"},
+            headers=auth_headers,
+        )
+        assert response.status_code == 422
+
+    @pytest.mark.asyncio
+    async def test_update_profile_rejects_short_name(
+        self, client, auth_headers
+    ):
+        response = await client.patch(
+            "/api/v1/auth/me",
+            json={"first_name": ""},
+            headers=auth_headers,
+        )
+        assert response.status_code == 422
+
+
+# ============================================================
+#  Change password
+# ============================================================
+
+class TestChangePassword:
+    @pytest.mark.asyncio
+    async def test_change_password_happy(
+        self, client, verified_user, auth_headers
+    ):
+        response = await client.post(
+            "/api/v1/auth/change-password",
+            json={
+                "old_password": "test-password-1234",
+                "new_password": "new-password-9999",
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+
+        # Новый пароль работает
+        login = await client.post("/api/v1/auth/login", json={
+            "email": verified_user.email,
+            "password": "new-password-9999",
+        })
+        assert login.status_code == 200
+
+    @pytest.mark.asyncio
+    async def test_change_password_wrong_old(
+        self, client, auth_headers
+    ):
+        response = await client.post(
+            "/api/v1/auth/change-password",
+            json={
+                "old_password": "wrong-password",
+                "new_password": "new-password-9999",
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 422
+        assert response.json()["code"] == "invalid_old_password"
+
+    @pytest.mark.asyncio
+    async def test_change_password_revokes_all_refresh_tokens(
+        self, client, verified_user, auth_headers, db_session
+    ):
+        """После смены пароля все refresh-токены отозваны."""
+        # Создаём 2 сессии (два логина → 2 refresh-токена)
+        for _ in range(2):
+            await client.post("/api/v1/auth/login", json={
+                "email": verified_user.email,
+                "password": "test-password-1234",
+            })
+
+        response = await client.post(
+            "/api/v1/auth/change-password",
+            json={
+                "old_password": "test-password-1234",
+                "new_password": "new-password-9999",
+            },
+            headers=auth_headers,
+        )
+        assert response.status_code == 200
+
+        records = (await db_session.execute(
+            select(RefreshToken).where(RefreshToken.user_id == verified_user.id)
+        )).scalars().all()
+        assert len(records) >= 2
+        assert all(r.revoked for r in records)
+
+    @pytest.mark.asyncio
+    async def test_change_password_requires_auth(self, client):
+        response = await client.post(
+            "/api/v1/auth/change-password",
+            json={"old_password": "x", "new_password": "y" * 8},
+        )
+        assert response.status_code == 401

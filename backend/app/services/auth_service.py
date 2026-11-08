@@ -1,4 +1,3 @@
-# app/services/auth_service.py
 """
 Сервис аутентификации.
 
@@ -57,3 +56,28 @@ async def revoke_family_independently(family_id) -> int:
             "Revoked %d refresh-tokens in family=%s", count, family_id
         )
         return count
+
+async def revoke_all_user_families(db: AsyncSession, user_id: int) -> int:
+    """
+    Отзывает ВСЕ refresh-токены пользователя (все семьи).
+
+    Используется при:
+    - смене пароля (старые сессии недействительны),
+    - бане пользователя (admin-api),
+    - смене роли (admin-api — для перечитывания роли на клиенте).
+
+    Работает в ПЕРЕДАННОЙ сессии — commit сделает get_db.
+    """
+    now = datetime.now(UTC)
+    result = await db.execute(
+        update(RefreshToken)
+        .where(
+            RefreshToken.user_id == user_id,
+            RefreshToken.revoked.is_(False),
+        )
+        .values(revoked=True, revoked_at=now)
+    )
+    await db.flush()
+    count = result.rowcount or 0
+    logger.info("Revoked %d refresh tokens for user=%s", count, user_id)
+    return count

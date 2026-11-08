@@ -54,3 +54,29 @@ class MessageResponse(BaseModel):
 class ResendVerificationRequest(BaseModel):
     email: EmailStr
     model_config = ConfigDict(extra="forbid")
+
+
+
+class ProfileUpdateRequest(BaseModel):
+    """PATCH /auth/me. PATCH-семантика: только присланное меняется.
+
+    email НЕ редактируется через этот endpoint — смена email требует
+    re-verification (отдельная задача вне scope).
+    """
+    first_name: str | None = Field(default=None, min_length=1, max_length=100)
+    last_name: str | None = Field(default=None, min_length=1, max_length=100)
+    phone_number: str | None = Field(default=None, min_length=5, max_length=20)
+
+    model_config = ConfigDict(extra="forbid")
+
+
+class PasswordChangeRequest(BaseModel):
+    """POST /auth/change-password.
+
+    old_password — для подтверждения (защита от смены при угоне access-токена).
+    new_password — min 8, как в RegisterRequest.
+    """
+    old_password: str = Field(..., min_length=1, max_length=128)
+    new_password: str = Field(..., min_length=8, max_length=128)
+
+    model_config = ConfigDict(extra="forbid")

@@ -56,3 +56,16 @@ export interface MessageResponse {
 export interface ResendVerificationRequest {
   email: string;
 }
+
+// app/schemas/auth.py — ProfileUpdateRequest
+export interface ProfileUpdateRequest {
+  first_name?: string | null;
+  last_name?: string | null;
+  phone_number?: string | null;
+}
+
+// app/schemas/auth.py — PasswordChangeRequest
+export interface PasswordChangeRequest {
+  old_password: string;
+  new_password: string;
+}

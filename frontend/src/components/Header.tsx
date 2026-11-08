@@ -56,6 +56,9 @@ export function Header() {
             <NavLink to="/orders" className={navLinkClass}>
               Заказы
             </NavLink>
+            <NavLink to="/profile" className={navLinkClass}>
+              Профиль
+            </NavLink>
             <NavLink to="/addresses" className={navLinkClass}>
               Адреса
             </NavLink>

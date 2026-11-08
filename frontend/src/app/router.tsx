@@ -24,6 +24,10 @@ const AdminDashboardPage = lazyNamed(
   () => import("../features/admin/pages/AdminDashboardPage"),
   "AdminDashboardPage"
 );
+const ProfilePage = lazyNamed(
+  () => import("../pages/ProfilePage"),
+  "ProfilePage"
+);
 const AdminOrdersPage = lazyNamed(
   () => import("../features/admin/pages/AdminOrdersPage"),
   "AdminOrdersPage"
@@ -85,6 +89,7 @@ export const router = createBrowserRouter([
           { index: true, element: page(<AdminDashboardPage />) },
           { path: "orders", element: page(<AdminOrdersPage />) },
           { path: "categories", element: page(<AdminCategoriesPage />) },
+          { path: "profile", element: protectedPage(<ProfilePage />) },
         ],
       },
     ],

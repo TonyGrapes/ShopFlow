@@ -16,6 +16,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import User, get_current_active_user
 from app.core.config import get_settings
+from app.core.exceptions import ValidationError
 from app.core.redis import get_redis
 from app.core.security import (
     create_access_token,
@@ -32,12 +33,15 @@ from app.models.user import User as UserModel
 from app.schemas.auth import (
     LoginRequest,
     MessageResponse,
+    PasswordChangeRequest,
+    ProfileUpdateRequest,
     RegisterRequest,
     ResendVerificationRequest,
     TokenResponse,
     UserResponse,
 )
 from app.services.auth_service import (
+    revoke_all_user_families,
     revoke_family,
     revoke_family_independently,
 )
@@ -442,4 +446,69 @@ async def resend_verification(
 
     return MessageResponse(
         message="If the address is registered and unverified, an email has been sent."
+    )
+
+# ============================================================
+#  PATCH /auth/me — редактирование профиля
+# ============================================================
+
+@router.patch("/me", response_model=UserResponse)
+async def update_me(
+    data: ProfileUpdateRequest,
+    current: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    PATCH профиля: first_name / last_name / phone_number.
+
+    email НЕ редактируется — смена email требует re-verification
+    (отдельная задача). PATCH-семантика: только присланные поля
+    меняются, остальные — без изменений.
+    """
+    user = current.orm
+    update_data = data.model_dump(exclude_unset=True)
+
+    for field, value in update_data.items():
+        setattr(user, field, value)
+
+    await db.flush()
+    await db.refresh(user)
+    return UserResponse.model_validate(user)
+
+
+# ============================================================
+#  POST /auth/change-password
+# ============================================================
+
+@router.post("/change-password", response_model=MessageResponse)
+async def change_password(
+    data: PasswordChangeRequest,
+    current: User = Depends(get_current_active_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Смена пароля.
+
+    Безопасность:
+    - старый пароль обязателен (защита от смены через угнанный access-токен);
+    - после смены — ВСЕ refresh-токены пользователя отзываются.
+      Текущий access доживёт до exp (30 мин), затем потребуется
+      повторный логин с новым паролем. Фронт должен разлогинить
+      пользователя сразу после 200.
+    """
+    user = current.orm
+
+    is_valid, _ = verify_password(data.old_password, user.password_hash)
+    if not is_valid:
+        raise ValidationError(
+            "Current password is incorrect",
+            code="invalid_old_password",
+        )
+
+    user.password_hash = hash_password(data.new_password)
+    await revoke_all_user_families(db, user.id)
+    await db.flush()
+
+    return MessageResponse(
+        message="Password changed. Please log in again."
     )
