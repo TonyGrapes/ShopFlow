@@ -13,9 +13,10 @@ const PERIOD_OPTIONS = [
   { value: 30, label: "30 дней" },
   { value: 90, label: "90 дней" },
 ];
-const { showToast } = useToast();
+
 
 export function AdminDashboardPage() {
+  const { showToast } = useToast();
   const [periodDays, setPeriodDays] = useState(7);
   const q = useApiQuery(
     `admin:dashboard:${periodDays}`,
