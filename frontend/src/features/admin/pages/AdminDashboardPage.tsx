@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { fetchAdminDashboard, fetchAdminDashboardSeries } from "../../../api/admin";
+import { fetchAdminDashboard, fetchAdminDashboardSeries, downloadDashboardCsv } from "../../../api/admin";
 import { RevenueChart } from "../components/RevenueChart";
 import { useApiQuery } from "../../../shared/hooks/useApiQuery";
 import { formatMoney } from "../../../utils/format";
 import styles from "../Admin.module.css";
+import { useToast } from "../../../hooks/useToast";
 
 
 const PERIOD_OPTIONS = [
@@ -12,6 +13,7 @@ const PERIOD_OPTIONS = [
   { value: 30, label: "30 дней" },
   { value: 90, label: "90 дней" },
 ];
+const { showToast } = useToast();
 
 export function AdminDashboardPage() {
   const [periodDays, setPeriodDays] = useState(7);
@@ -42,6 +44,31 @@ export function AdminDashboardPage() {
             <option key={o.value} value={o.value}>{o.label}</option>
           ))}
         </select>
+        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
+          <select
+            className={styles.select}
+            value={periodDays}
+            onChange={(e) => setPeriodDays(Number(e.target.value))}
+          >
+            {PERIOD_OPTIONS.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className={styles.secondaryButton}
+            onClick={() => {
+              void downloadDashboardCsv(periodDays).catch((err) => {
+                showToast(
+                  err instanceof Error ? err.message : "Ошибка скачивания",
+                  "error"
+                );
+              });
+            }}
+          >
+            Скачать CSV
+          </button>
+        </div>
       </div>
 
       {q.loading && <p className={styles.muted}>Загрузка…</p>}

@@ -12,6 +12,8 @@ C6 добавит /export.csv.
 FILTER, один на users count, один на top-5. «Один SQL с UNION ALL» —
 читался бы хуже без выигрыша по нагрузке.
 """
+import csv
+import io
 import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -63,21 +65,13 @@ _REVENUE_STATUSES = (
     response_model=AdminDashboardResponse,
     dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MODERATOR))],
 )
+
 async def get_admin_dashboard(
     response: Response,
     period_days: int = Query(7, ge=1, le=90),
     db: AsyncSession = Depends(get_db),
     cache: CacheService = Depends(get_cache_service),
 ):
-    """
-    Метрики дашборда за period_days (1..90).
-
-    4 SQL:
-    1. orders_count + revenue_gross (current + prev, FILTER).
-    2. new_users_count (current + prev, FILTER).
-    3. top-5 товаров по выручке (JOIN order_items).
-    4. refunds_total (current + prev, FILTER by refunded_at).
-    """
     cache_key = f"{_CACHE_PREFIX}:{period_days}"
 
     cached = await cache.get_json(cache_key)
@@ -85,9 +79,25 @@ async def get_admin_dashboard(
         response.headers["X-Cache"] = "HIT"
         return AdminDashboardResponse.model_validate(cached)
 
-    threshold = datetime.now(UTC) - timedelta(days=period_days)
+    result = await _collect_dashboard_data(db, period_days)
 
-        # ── SQL 1: orders_count + revenue_gross — текущий + prev одним проходом ──
+    await cache.set_json(
+        cache_key, result.model_dump(mode="json"),
+        ttl_seconds=_DASHBOARD_TTL_SECONDS,
+    )
+    
+    response.headers["X-Cache"] = "MISS"
+    return result
+
+async def _collect_dashboard_data(
+    db: AsyncSession, period_days: int
+) -> AdminDashboardResponse:
+    """SQL-агрегаты для дашборда. Без кэша и HTTP. Переиспользуется
+    get_admin_dashboard и export_admin_dashboard_csv."""
+    threshold = datetime.now(UTC) - timedelta(days=period_days)
+    prev_threshold = threshold - timedelta(days=period_days)
+
+    # ── SQL 1: orders_count + revenue_gross — текущий + prev одним проходом ──
     prev_threshold = threshold - timedelta(days=period_days)
 
     orders_result = await db.execute(
@@ -210,7 +220,7 @@ async def get_admin_dashboard(
     refunds_total = rrow.refunds_total
     refunds_total_prev = rrow.refunds_total_prev
 
-    result = AdminDashboardResponse(
+    return AdminDashboardResponse(
         period_days=period_days,
         orders_count=orders_count,
         revenue_gross=revenue_gross,
@@ -228,14 +238,43 @@ async def get_admin_dashboard(
         new_users_count_delta_pct=_delta_pct(new_users_count, new_users_count_prev),
     )
 
-    await cache.set_json(
-        cache_key,
-        result.model_dump(mode="json"),
-        ttl_seconds=_DASHBOARD_TTL_SECONDS,
-    )
-    response.headers["X-Cache"] = "MISS"
-    return result
 
+@router.get(
+    "/export.csv",
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MODERATOR))],
+)
+async def export_admin_dashboard_csv(
+    period_days: int = Query(7, ge=1, le=90),
+    db: AsyncSession = Depends(get_db),
+):
+    """..."""
+    data = await _collect_dashboard_data(db, period_days)
+
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["Section", "Metric", "Value"])
+    writer.writerow(["Summary", "Period (days)", data.period_days])
+    writer.writerow(["Summary", "Orders count", data.orders_count])
+    writer.writerow(["Summary", "Revenue gross", f"{data.revenue_gross:.2f}"])
+    writer.writerow(["Summary", "Refunds total", f"{data.refunds_total:.2f}"])
+    writer.writerow(["Summary", "Revenue net", f"{data.revenue_net:.2f}"])
+    writer.writerow(["Summary", "New users", data.new_users_count])
+    writer.writerow([])
+    writer.writerow(["Top products", "Rank", "Name", "Quantity", "Revenue"])
+    for rank, p in enumerate(data.top_products, start=1):
+        writer.writerow([
+            "Top products", rank, p.product_name,
+            p.total_quantity, f"{p.total_revenue:.2f}",
+        ])
+
+    filename = f"shopflow-dashboard-{period_days}d.csv"
+    return Response(
+        content=buf.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={
+            "Content-Disposition": f'attachment; filename="{filename}"',
+        },
+    )
 def _delta_pct(curr, prev) -> float | None:
     """
     Процент изменения curr относительно prev (округление до 1 знака).

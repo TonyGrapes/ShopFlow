@@ -30,6 +30,7 @@ import type {
 import type { AdminDashboardResponse } from "../types/admin";
 
 import type { AdminDashboardSeriesResponse } from "../types/admin";
+import { API_BASE_URL } from "./config";
 
 export interface AdminOrderListParams {
   page?: number;
@@ -148,6 +149,29 @@ export function fetchAdminDashboardSeries(
     "/api/v1/admin/dashboard/series",
     { period_days: periodDays }
   );
+}
+
+export async function downloadDashboardCsv(
+  periodDays = 7
+): Promise<void> {
+  // access-токен в памяти, не в cookies → нельзя window.location.href.
+  // Используем fetch + blob + <a download>.
+  const { getAccessToken } = await import("./session");
+  const token = getAccessToken();
+  const url = `${API_BASE_URL}/api/v1/admin/dashboard/export.csv?period_days=${periodDays}`;
+  const response = await fetch(url, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+    credentials: "include",
+  });
+  if (!response.ok) {
+    throw new Error(`HTTP ${response.status}`);
+  }
+  const blob = await response.blob();
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(blob);
+  link.download = `shopflow-dashboard-${periodDays}d.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
 }
 
 

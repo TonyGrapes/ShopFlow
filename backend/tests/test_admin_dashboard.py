@@ -499,3 +499,47 @@ class TestDashboardCache:
         )
         assert r2.headers["X-Cache"] == "HIT"
         assert r1.json() == r2.json()   # те же данные, что в кэше
+
+
+class TestDashboardCsvExport:
+    @pytest.mark.asyncio
+    async def test_export_requires_admin(self, client, auth_headers):
+        response = await client.get(
+            "/api/v1/admin/dashboard/export.csv", headers=auth_headers,
+        )
+        assert response.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_export_content_type_and_disposition(
+        self, client, admin_headers
+    ):
+        response = await client.get(
+            "/api/v1/admin/dashboard/export.csv?period_days=7",
+            headers=admin_headers,
+        )
+        assert response.status_code == 200
+        assert response.headers["content-type"].startswith("text/csv")
+        assert "attachment" in response.headers["content-disposition"]
+        assert "shopflow-dashboard-7d.csv" in response.headers["content-disposition"]
+
+    @pytest.mark.asyncio
+    async def test_export_csv_structure(
+        self, client, admin_headers
+    ):
+        response = await client.get(
+            "/api/v1/admin/dashboard/export.csv?period_days=7",
+            headers=admin_headers,
+        )
+        text = response.text
+        lines = text.strip().splitlines()
+
+        # Header
+        assert lines[0] == "Section,Metric,Value"
+
+        # Summary block
+        assert any("Summary,Period (days),7" in line for line in lines)
+        assert any("Summary,Orders count," in line for line in lines)
+        assert any("Summary,Revenue gross," in line for line in lines)
+
+        # Top products header
+        assert any("Top products,Rank,Name,Quantity,Revenue" in line for line in lines)
