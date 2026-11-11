@@ -57,10 +57,18 @@ export interface TopProductItem {
 
 export interface AdminDashboardResponse {
   period_days: number;
+  // текущий период
   orders_count: number;
   revenue_gross: Money;
   refunds_total: Money;
   revenue_net: Money;
   new_users_count: number;
   top_products: TopProductItem[];
+  // сравнение с предыдущим окном
+  orders_count_prev: number;
+  orders_count_delta_pct: number | null;
+  revenue_gross_prev: Money;
+  revenue_gross_delta_pct: number | null;
+  new_users_count_prev: number;
+  new_users_count_delta_pct: number | null;
 }

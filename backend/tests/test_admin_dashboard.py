@@ -194,3 +194,66 @@ class TestDashboardMetrics:
         # Сортировка по убыванию
         revenues = [Decimal(t["total_revenue"]) for t in top]
         assert revenues == sorted(revenues, reverse=True)
+
+class TestDashboardComparison:
+    @pytest.mark.asyncio
+    async def test_prev_and_delta(
+        self, client, admin_headers, db_session, verified_user, address
+    ):
+        """
+        Текущее окно (0..7 дней): 1 заказ на 100.
+        Предыдущее окно (7..14 дней): 2 заказа на 50+50=100.
+        delta_pct = (1-2)/2*100 = -50.0; (100-100)/100*100 = 0.0.
+        """
+        now = datetime.now(UTC)
+        db_session.add(Order(
+            user_id=verified_user.id, total=Decimal("100.00"),
+            status=OrderStatus.PAID, shipping_address_id=address.id,
+            created_at=now - timedelta(hours=1),
+        ))
+        db_session.add(Order(
+            user_id=verified_user.id, total=Decimal("50.00"),
+            status=OrderStatus.PAID, shipping_address_id=address.id,
+            created_at=now - timedelta(days=10),
+        ))
+        db_session.add(Order(
+            user_id=verified_user.id, total=Decimal("50.00"),
+            status=OrderStatus.PAID, shipping_address_id=address.id,
+            created_at=now - timedelta(days=11),
+        ))
+        await db_session.flush()
+
+        response = await client.get(
+            "/api/v1/admin/dashboard?period_days=7", headers=admin_headers,
+        )
+        assert response.status_code == 200
+        body = response.json()
+
+        assert body["orders_count"] == 1
+        assert body["orders_count_prev"] == 2
+        assert body["orders_count_delta_pct"] == -50.0
+
+        assert Decimal(body["revenue_gross"]) == Decimal("100.00")
+        assert Decimal(body["revenue_gross_prev"]) == Decimal("100.00")
+        assert body["revenue_gross_delta_pct"] == 0.0
+
+    @pytest.mark.asyncio
+    async def test_delta_none_when_prev_zero(
+        self, client, admin_headers, db_session, verified_user, address
+    ):
+        """prev=0, curr>0 → delta_pct = None (не ∞)."""
+        db_session.add(Order(
+            user_id=verified_user.id, total=Decimal("100.00"),
+            status=OrderStatus.PAID, shipping_address_id=address.id,
+            created_at=datetime.now(UTC) - timedelta(hours=1),
+        ))
+        await db_session.flush()
+
+        response = await client.get(
+            "/api/v1/admin/dashboard?period_days=7", headers=admin_headers,
+        )
+        body = response.json()
+        assert body["orders_count"] == 1
+        assert body["orders_count_prev"] == 0
+        assert body["orders_count_delta_pct"] is None
+        assert body["revenue_gross_delta_pct"] is None

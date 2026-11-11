@@ -44,29 +44,30 @@ export function AdminDashboardPage() {
       {!q.loading && !q.error && q.data && (
         <>
           <div className={styles.cards}>
-            <div className={styles.card}>
-              <span className={styles.cardLabel}>Заказы</span>
-              <strong className={styles.cardValue}>{q.data.orders_count}</strong>
-              <span className={styles.cardHint}>за {q.data.period_days} дн.</span>
-            </div>
+            <DeltaCard
+              label="Заказы"
+              value={String(q.data.orders_count)}
+              deltaPct={q.data.orders_count_delta_pct}
+              prev={String(q.data.orders_count_prev)}
+              periodDays={q.data.period_days}
+            />
 
-            <div className={styles.card}>
-              <span className={styles.cardLabel}>Выручка</span>
-              <strong className={styles.cardValue}>
-                {formatMoney(q.data.revenue_net)}
-              </strong>
-              <span className={styles.cardHint}>
-                gross: {formatMoney(q.data.revenue_gross)}
-                {q.data.refunds_total !== "0.00" &&
-                  ` · возвраты: ${formatMoney(q.data.refunds_total)}`}
-              </span>
-            </div>
+            <DeltaCard
+              label="Выручка"
+              value={formatMoney(q.data.revenue_net)}
+              deltaPct={q.data.revenue_gross_delta_pct}
+              prev={formatMoney(q.data.revenue_gross_prev)}
+              periodDays={q.data.period_days}
+              hint={`gross: ${formatMoney(q.data.revenue_gross)}`}
+            />
 
-            <div className={styles.card}>
-              <span className={styles.cardLabel}>Новые пользователи</span>
-              <strong className={styles.cardValue}>{q.data.new_users_count}</strong>
-              <span className={styles.cardHint}>за {q.data.period_days} дн.</span>
-            </div>
+            <DeltaCard
+              label="Новые пользователи"
+              value={String(q.data.new_users_count)}
+              deltaPct={q.data.new_users_count_delta_pct}
+              prev={String(q.data.new_users_count_prev)}
+              periodDays={q.data.period_days}
+            />
 
             <div className={styles.card}>
               <span className={styles.cardLabel}>Возвраты</span>
@@ -115,5 +116,45 @@ export function AdminDashboardPage() {
         </>
       )}
     </div>
+  );
+}
+
+interface DeltaCardProps {
+  label: string;
+  value: string;
+  deltaPct: number | null;
+  prev: string;
+  periodDays: number;
+  hint?: string;
+}
+
+function DeltaCard({ label, value, deltaPct, prev, periodDays, hint }: DeltaCardProps) {
+  return (
+    <div className={styles.card}>
+      <span className={styles.cardLabel}>{label}</span>
+      <strong className={styles.cardValue}>{value}</strong>
+      <DeltaBadge value={deltaPct} />
+      <span className={styles.cardHint}>
+        было {prev} за пред. {periodDays} дн.
+      </span>
+      {hint !== undefined && <span className={styles.cardHint}>{hint}</span>}
+    </div>
+  );
+}
+
+function DeltaBadge({ value }: { value: number | null }) {
+  if (value === null) {
+    return <span className={styles.muted}>—</span>;
+  }
+  if (value === 0) {
+    return <span className={styles.muted}>→ 0%</span>;
+  }
+  const positive = value > 0;
+  const arrow = positive ? "↑" : "↓";
+  const color = positive ? "#1b5e20" : "#c02626";
+  return (
+    <span style={{ color, fontWeight: 600, fontSize: 14 }}>
+      {arrow} {Math.abs(value).toFixed(1)}%
+    </span>
   );
 }

@@ -67,10 +67,22 @@ async def get_admin_dashboard(
     """
     threshold = datetime.now(UTC) - timedelta(days=period_days)
 
-    # ── SQL 1: orders_count + revenue_gross одним проходом ──
+        # ── SQL 1: orders_count + revenue_gross — текущий + prev одним проходом ──
+    prev_threshold = threshold - timedelta(days=period_days)
+
     orders_result = await db.execute(
         select(
-            func.count().filter(Order.created_at > threshold).label("orders_count"),
+            func.count()
+            .filter(Order.created_at > threshold)
+            .label("orders_count"),
+            func.count()
+            .filter(
+                and_(
+                    Order.created_at > prev_threshold,
+                    Order.created_at <= threshold,
+                )
+            )
+            .label("orders_count_prev"),
             func.coalesce(
                 func.sum(Order.total).filter(
                     and_(
@@ -80,20 +92,44 @@ async def get_admin_dashboard(
                 ),
                 Decimal("0.00"),
             ).label("revenue_gross"),
+            func.coalesce(
+                func.sum(Order.total).filter(
+                    and_(
+                        Order.status.in_(_REVENUE_STATUSES),
+                        Order.created_at > prev_threshold,
+                        Order.created_at <= threshold,
+                    )
+                ),
+                Decimal("0.00"),
+            ).label("revenue_gross_prev"),
         )
     )
-    orders_count, revenue_gross = orders_result.one()
+    row = orders_result.one()
+    orders_count = row.orders_count
+    orders_count_prev = row.orders_count_prev
+    revenue_gross = row.revenue_gross
+    revenue_gross_prev = row.revenue_gross_prev
 
-    # ── SQL 2: users count за период ──
+        # ── SQL 2: users count (current + prev) ──
     users_result = await db.execute(
-        select(func.count())
-        .select_from(UserModel)
-        .where(
-            UserModel.created_at > threshold,
-            UserModel.deleted_at.is_(None),
+        select(
+            func.count()
+            .filter(UserModel.created_at > threshold)
+            .label("new_users_count"),
+            func.count()
+            .filter(
+                and_(
+                    UserModel.created_at > prev_threshold,
+                    UserModel.created_at <= threshold,
+                )
+            )
+            .label("new_users_count_prev"),
         )
+        .where(UserModel.deleted_at.is_(None))
     )
-    new_users_count = users_result.scalar_one()
+    urow = users_result.one()
+    new_users_count = urow.new_users_count
+    new_users_count_prev = urow.new_users_count_prev
 
     # ── SQL 3: top-5 по выручке ──
     revenue_expr = func.sum(OrderItem.product_cost * OrderItem.product_count)
@@ -136,4 +172,24 @@ async def get_admin_dashboard(
         revenue_net=revenue_gross - refunds_total,
         new_users_count=new_users_count,
         top_products=top_products,
+        orders_count_prev=orders_count_prev,
+        orders_count_delta_pct=_delta_pct(orders_count, orders_count_prev),
+        revenue_gross_prev=revenue_gross_prev,
+        revenue_gross_delta_pct=_delta_pct(revenue_gross, revenue_gross_prev),
+        new_users_count_prev=new_users_count_prev,
+        new_users_count_delta_pct=_delta_pct(new_users_count, new_users_count_prev),
     )
+
+def _delta_pct(curr, prev) -> float | None:
+    """
+    Процент изменения curr относительно prev (округление до 1 знака).
+
+    - prev > 0 → (curr - prev) / prev * 100
+    - prev == 0 и curr == 0 → 0.0 (нет изменений)
+    - prev == 0 и curr > 0 → None (не определено; фронт покажет «—»)
+    """
+    prev_f = float(prev)
+    curr_f = float(curr)
+    if prev_f == 0:
+        return 0.0 if curr_f == 0 else None
+    return round((curr_f - prev_f) / prev_f * 100, 1)

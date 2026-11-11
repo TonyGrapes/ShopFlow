@@ -57,14 +57,29 @@ class AdminDashboardResponse(BaseModel):
     """
     Метрики дашборда за period_days.
 
-    revenue_gross — сумма orders.total для статусов paid|shipped|delivered.
-    refunds_total — в C1 всегда 0.00; C3 заполнит реальным SUM(refunds.amount).
-    revenue_net   — revenue_gross - refunds_total (в C1 совпадает с gross).
+    Для orders_count, revenue_gross, new_users_count добавлены поля
+    сравнения с предыдущим окном (prev) и процент изменения (delta_pct).
+
+    delta_pct = (curr - prev) / prev * 100, округление до 1 знака.
+    None — если prev = 0 и curr > 0 (процент от нуля бессмысленен).
+    0.0 — если prev = 0 и curr = 0 (изменений нет).
+
+    refunds_total / net: в C2 всё ещё 0.00 / = gross. Реальное значение — C3.
     """
     period_days: int
+
+    # ── Текущий период ──
     orders_count: int
     revenue_gross: Money
     refunds_total: Money
     revenue_net: Money
     new_users_count: int
     top_products: list[TopProductItem]
+
+    # ── Предыдущее окно (period_days до начала текущего) ──
+    orders_count_prev: int
+    orders_count_delta_pct: float | None
+    revenue_gross_prev: Money
+    revenue_gross_delta_pct: float | None
+    new_users_count_prev: int
+    new_users_count_delta_pct: float | None
