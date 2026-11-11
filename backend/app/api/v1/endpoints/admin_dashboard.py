@@ -16,11 +16,11 @@ import logging
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, Response
 from sqlalchemy import and_, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.v1.deps import require_roles
+from app.api.v1.deps import get_cache_service, require_roles
 from app.db.enum import OrderStatus, RefundStatus, UserRole
 from app.db.session import get_db
 from app.models.order import Order
@@ -34,9 +34,18 @@ from app.schemas.admin import (
     DailySeriesItem,
     TopProductItem,
 )
+from app.services.cache_service import CacheService
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/admin/dashboard", tags=["admin:dashboard"])
+
+# Кэш дашборда: 60 сек TTL, без явной инвалидации.
+# - Админ открывает редко, F5-серии раз в минуту допустимы.
+# - Инвалидация на 6+ точках мутаций (order, payment, refund, ban, role)
+#   → выше риск ошибки, чем 60-сек устаревание.
+# - CacheService fail-open: Redis down → HIT не будет, но запрос не упадёт.
+_DASHBOARD_TTL_SECONDS = 60
+_CACHE_PREFIX = "admin:dashboard"
 
 
 # ✅ «Выручка» = заказы, за которые получены деньги:
@@ -55,8 +64,10 @@ _REVENUE_STATUSES = (
     dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MODERATOR))],
 )
 async def get_admin_dashboard(
+    response: Response,
     period_days: int = Query(7, ge=1, le=90),
     db: AsyncSession = Depends(get_db),
+    cache: CacheService = Depends(get_cache_service),
 ):
     """
     Метрики дашборда за period_days (1..90).
@@ -67,7 +78,13 @@ async def get_admin_dashboard(
     3. top-5 товаров по выручке (JOIN order_items).
     4. refunds_total (current + prev, FILTER by refunded_at).
     """
-    
+    cache_key = f"{_CACHE_PREFIX}:{period_days}"
+
+    cached = await cache.get_json(cache_key)
+    if cached is not None:
+        response.headers["X-Cache"] = "HIT"
+        return AdminDashboardResponse.model_validate(cached)
+
     threshold = datetime.now(UTC) - timedelta(days=period_days)
 
         # ── SQL 1: orders_count + revenue_gross — текущий + prev одним проходом ──
@@ -193,7 +210,7 @@ async def get_admin_dashboard(
     refunds_total = rrow.refunds_total
     refunds_total_prev = rrow.refunds_total_prev
 
-    return AdminDashboardResponse(
+    result = AdminDashboardResponse(
         period_days=period_days,
         orders_count=orders_count,
         revenue_gross=revenue_gross,
@@ -210,6 +227,14 @@ async def get_admin_dashboard(
         new_users_count_prev=new_users_count_prev,
         new_users_count_delta_pct=_delta_pct(new_users_count, new_users_count_prev),
     )
+
+    await cache.set_json(
+        cache_key,
+        result.model_dump(mode="json"),
+        ttl_seconds=_DASHBOARD_TTL_SECONDS,
+    )
+    response.headers["X-Cache"] = "MISS"
+    return result
 
 def _delta_pct(curr, prev) -> float | None:
     """
@@ -230,9 +255,12 @@ def _delta_pct(curr, prev) -> float | None:
     response_model=AdminDashboardSeriesResponse,
     dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MODERATOR))],
 )
+
 async def get_admin_dashboard_series(
+    response: Response,
     period_days: int = Query(7, ge=1, le=90),
     db: AsyncSession = Depends(get_db),
+    cache: CacheService = Depends(get_cache_service),
 ):
     """
     Динамика по дням за period_days.
@@ -244,6 +272,13 @@ async def get_admin_dashboard_series(
     Захардкожены строкой, потому что bind-параметры для IN-list в text()
     менее читаемы, а значения стабильны (см. app/db/enum.py).
     """
+    cache_key = f"{_CACHE_PREFIX}:series:{period_days}"
+
+    cached = await cache.get_json(cache_key)
+    if cached is not None:
+        response.headers["X-Cache"] = "HIT"
+        return AdminDashboardSeriesResponse.model_validate(cached)
+
     sql = text("""
         WITH days AS (
             SELECT generate_series(
@@ -275,4 +310,13 @@ async def get_admin_dashboard_series(
         )
         for row in result.all()
     ]
-    return AdminDashboardSeriesResponse(period_days=period_days, items=items)
+
+    result = AdminDashboardSeriesResponse(period_days=period_days, items=items)
+
+    await cache.set_json(
+        cache_key,
+        result.model_dump(mode="json"),
+        ttl_seconds=_DASHBOARD_TTL_SECONDS,
+    )
+    response.headers["X-Cache"] = "MISS"
+    return result

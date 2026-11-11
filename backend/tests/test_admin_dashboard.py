@@ -414,3 +414,88 @@ class TestDashboardSeries:
         # Первые 5 дней — нули
         for item in body["items"][:-2]:
             assert item["orders_count"] == 0
+
+class TestDashboardCache:
+    @pytest.mark.asyncio
+    async def test_dashboard_miss_then_hit(
+        self, client, admin_headers, mock_cache
+    ):
+        mock_cache._storage.clear()
+
+        r1 = await client.get(
+            "/api/v1/admin/dashboard", headers=admin_headers,
+        )
+        assert r1.status_code == 200
+        assert r1.headers["X-Cache"] == "MISS"
+
+        r2 = await client.get(
+            "/api/v1/admin/dashboard", headers=admin_headers,
+        )
+        assert r2.status_code == 200
+        assert r2.headers["X-Cache"] == "HIT"
+        # JSON идентичен (Decimal сохраняется как str в обоих случаях)
+        assert r1.json() == r2.json()
+
+    @pytest.mark.asyncio
+    async def test_dashboard_cache_per_period(
+        self, client, admin_headers, mock_cache
+    ):
+        """Разные period_days → разные ключи → оба MISS."""
+        mock_cache._storage.clear()
+
+        r7 = await client.get(
+            "/api/v1/admin/dashboard?period_days=7", headers=admin_headers,
+        )
+        r30 = await client.get(
+            "/api/v1/admin/dashboard?period_days=30", headers=admin_headers,
+        )
+        assert r7.headers["X-Cache"] == "MISS"
+        assert r30.headers["X-Cache"] == "MISS"
+        assert len(mock_cache._storage) == 2
+
+    @pytest.mark.asyncio
+    async def test_series_miss_then_hit(
+        self, client, admin_headers, mock_cache
+    ):
+        mock_cache._storage.clear()
+
+        r1 = await client.get(
+            "/api/v1/admin/dashboard/series", headers=admin_headers,
+        )
+        assert r1.headers["X-Cache"] == "MISS"
+
+        r2 = await client.get(
+            "/api/v1/admin/dashboard/series", headers=admin_headers,
+        )
+        assert r2.headers["X-Cache"] == "HIT"
+        assert r1.json() == r2.json()
+
+    @pytest.mark.asyncio
+    async def test_cache_hit_does_not_query_db(
+        self, client, admin_headers, mock_cache, db_session
+    ):
+        """
+        Второй запрос (HIT) не должен ходить в БД.
+
+        Эмулируем: очищаем таблицу orders между запросами — HIT должен
+        вернуть старые данные (из кэша), а не упасть / не отдать пусто.
+        """
+        mock_cache._storage.clear()
+
+        r1 = await client.get(
+            "/api/v1/admin/dashboard", headers=admin_headers,
+        )
+        assert r1.headers["X-Cache"] == "MISS"
+
+        # «Портим» данные в БД — если бы HIT ходил в БД, ответ изменился бы
+        from sqlalchemy import delete
+
+        from app.models.order import Order
+        await db_session.execute(delete(Order))
+        await db_session.flush()
+
+        r2 = await client.get(
+            "/api/v1/admin/dashboard", headers=admin_headers,
+        )
+        assert r2.headers["X-Cache"] == "HIT"
+        assert r1.json() == r2.json()   # те же данные, что в кэше
