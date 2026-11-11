@@ -17,7 +17,7 @@ from datetime import UTC, datetime, timedelta
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, Query
-from sqlalchemy import and_, func, select
+from sqlalchemy import and_, func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_roles
@@ -30,6 +30,8 @@ from app.models.refund import Refund
 from app.models.user import User as UserModel
 from app.schemas.admin import (
     AdminDashboardResponse,
+    AdminDashboardSeriesResponse,
+    DailySeriesItem,
     TopProductItem,
 )
 
@@ -222,3 +224,55 @@ def _delta_pct(curr, prev) -> float | None:
     if prev_f == 0:
         return 0.0 if curr_f == 0 else None
     return round((curr_f - prev_f) / prev_f * 100, 1)
+
+@router.get(
+    "/series",
+    response_model=AdminDashboardSeriesResponse,
+    dependencies=[Depends(require_roles(UserRole.ADMIN, UserRole.MODERATOR))],
+)
+async def get_admin_dashboard_series(
+    period_days: int = Query(7, ge=1, le=90),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Динамика по дням за period_days.
+
+    Один SQL с generate_series: заполняет пустые дни нулями (иначе
+    график «прыгает» — визуально неверно).
+
+    Значения в SQL — из OrderStatus (enum): 'paid','shipped','delivered'.
+    Захардкожены строкой, потому что bind-параметры для IN-list в text()
+    менее читаемы, а значения стабильны (см. app/db/enum.py).
+    """
+    sql = text("""
+        WITH days AS (
+            SELECT generate_series(
+                (CURRENT_DATE - (:period - 1) * INTERVAL '1 day')::date,
+                CURRENT_DATE,
+                INTERVAL '1 day'
+            )::date AS date
+        )
+        SELECT d.date AS date,
+               COUNT(o.id) AS orders_count,
+               COALESCE(
+                   SUM(o.total) FILTER (
+                       WHERE o.status IN ('paid', 'shipped', 'delivered')
+                   ),
+                   0
+               ) AS revenue_gross
+        FROM days d
+        LEFT JOIN orders o ON o.created_at::date = d.date
+        GROUP BY d.date
+        ORDER BY d.date
+    """)
+
+    result = await db.execute(sql, {"period": period_days})
+    items = [
+        DailySeriesItem(
+            date=row.date,
+            orders_count=row.orders_count,
+            revenue_gross=row.revenue_gross,
+        )
+        for row in result.all()
+    ]
+    return AdminDashboardSeriesResponse(period_days=period_days, items=items)

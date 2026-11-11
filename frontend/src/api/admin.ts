@@ -29,6 +29,8 @@ import type {
 
 import type { AdminDashboardResponse } from "../types/admin";
 
+import type { AdminDashboardSeriesResponse } from "../types/admin";
+
 export interface AdminOrderListParams {
   page?: number;
   page_size?: number;
@@ -137,6 +139,15 @@ export function fetchAdminDashboard(
   return apiGet<AdminDashboardResponse>("/api/v1/admin/dashboard", {
     period_days: periodDays,
   });
+}
+
+export function fetchAdminDashboardSeries(
+  periodDays = 7
+): Promise<AdminDashboardSeriesResponse> {
+  return apiGet<AdminDashboardSeriesResponse>(
+    "/api/v1/admin/dashboard/series",
+    { period_days: periodDays }
+  );
 }
 
 

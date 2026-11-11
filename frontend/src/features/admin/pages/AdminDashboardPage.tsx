@@ -1,9 +1,11 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { fetchAdminDashboard } from "../../../api/admin";
+import { fetchAdminDashboard, fetchAdminDashboardSeries } from "../../../api/admin";
+import { RevenueChart } from "../components/RevenueChart";
 import { useApiQuery } from "../../../shared/hooks/useApiQuery";
 import { formatMoney } from "../../../utils/format";
 import styles from "../Admin.module.css";
+
 
 const PERIOD_OPTIONS = [
   { value: 7, label: "7 дней" },
@@ -16,6 +18,10 @@ export function AdminDashboardPage() {
   const q = useApiQuery(
     `admin:dashboard:${periodDays}`,
     () => fetchAdminDashboard(periodDays)
+  );
+  const series = useApiQuery(
+    `admin:dashboard:series:${periodDays}`,
+    () => fetchAdminDashboardSeries(periodDays)
   );
 
   return (
@@ -111,6 +117,16 @@ export function AdminDashboardPage() {
                   </tbody>
                 </table>
               </div>
+            )}
+          </section>
+            <section className={styles.panel} style={{ marginTop: "1rem" }}>
+            <div className={styles.panelHead}>
+              <h2 className={styles.panelTitle}>Выручка по дням</h2>
+            </div>
+            {series.loading && <p className={styles.muted}>Загрузка графика…</p>}
+            {series.error && <p className={styles.error}>{series.error}</p>}
+            {!series.loading && !series.error && series.data && (
+              <RevenueChart items={series.data.items} />
             )}
           </section>
         </>

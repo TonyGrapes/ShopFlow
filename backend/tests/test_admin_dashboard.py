@@ -342,3 +342,75 @@ class TestDashboardRefunds:
         assert Decimal(body["refunds_total"]) == Decimal("300.00")
         assert Decimal(body["refunds_total_prev"]) == Decimal("100.00")
         assert body["refunds_total_delta_pct"] == 200.0
+
+class TestDashboardSeries:
+    @pytest.mark.asyncio
+    async def test_series_requires_admin(self, client, auth_headers):
+        response = await client.get(
+            "/api/v1/admin/dashboard/series", headers=auth_headers,
+        )
+        assert response.status_code == 403
+
+    @pytest.mark.asyncio
+    async def test_series_fills_empty_days(
+        self, client, admin_headers
+    ):
+        """
+        7 дней → 7 items, даже если заказов нет.
+        Все revenue_gross = 0.00.
+        """
+        response = await client.get(
+            "/api/v1/admin/dashboard/series?period_days=7",
+            headers=admin_headers,
+        )
+        assert response.status_code == 200
+        body = response.json()
+        assert body["period_days"] == 7
+        assert len(body["items"]) == 7
+        for item in body["items"]:
+            assert item["orders_count"] == 0
+            assert Decimal(item["revenue_gross"]) == Decimal("0.00")
+
+    @pytest.mark.asyncio
+    async def test_series_groups_by_day(
+        self, client, admin_headers, db_session, verified_user, address
+    ):
+        """
+        Заказ сегодня (paid, 500) + заказ вчера (pending, 100).
+        Сегодня: orders_count=1, revenue_gross=500.
+        Вчера: orders_count=1, revenue_gross=0 (pending не в revenue).
+        Остальные дни — нули.
+        """
+        now = datetime.now(UTC)
+        db_session.add(Order(
+            user_id=verified_user.id, total=Decimal("500.00"),
+            status=OrderStatus.PAID, shipping_address_id=address.id,
+            created_at=now - timedelta(hours=1),
+        ))
+        db_session.add(Order(
+            user_id=verified_user.id, total=Decimal("100.00"),
+            status=OrderStatus.PENDING, shipping_address_id=address.id,
+            created_at=now - timedelta(days=1),
+        ))
+        await db_session.flush()
+
+        response = await client.get(
+            "/api/v1/admin/dashboard/series?period_days=7",
+            headers=admin_headers,
+        )
+        body = response.json()
+        assert len(body["items"]) == 7
+
+        # Сегодня — последний элемент
+        today = body["items"][-1]
+        assert today["orders_count"] == 1
+        assert Decimal(today["revenue_gross"]) == Decimal("500.00")
+
+        # Вчера — предпоследний
+        yesterday = body["items"][-2]
+        assert yesterday["orders_count"] == 1
+        assert Decimal(yesterday["revenue_gross"]) == Decimal("0.00")
+
+        # Первые 5 дней — нули
+        for item in body["items"][:-2]:
+            assert item["orders_count"] == 0

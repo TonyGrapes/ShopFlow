@@ -72,3 +72,17 @@ export interface AdminDashboardResponse {
   new_users_count_prev: number;
   new_users_count_delta_pct: number | null;
 }
+
+// ============================================================
+//  app/schemas/admin.py — Dashboard series (C4)
+// ============================================================
+export interface DailySeriesItem {
+  date: string;              // ISO YYYY-MM-DD
+  orders_count: number;
+  revenue_gross: Money;
+}
+
+export interface AdminDashboardSeriesResponse {
+  period_days: number;
+  items: DailySeriesItem[];
+}

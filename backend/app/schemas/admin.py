@@ -5,7 +5,7 @@
 Наружу отдаём public_id (единый контракт — клиент не зависит
 от внутренних id).
 """
-from datetime import datetime
+from datetime import date, datetime
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict
@@ -86,3 +86,29 @@ class AdminDashboardResponse(BaseModel):
     refunds_total_delta_pct: float | None
     new_users_count_prev: int
     new_users_count_delta_pct: float | None
+
+# ============================================================
+#  Dashboard series (C4: динамика по дням)
+# ============================================================
+
+class DailySeriesItem(BaseModel):
+    """
+    Один день в серии.
+
+    date — ISO YYYY-MM-DD (локальная дата PostgreSQL CURRENT_DATE).
+    orders_count — все заказы в этот день (pending/canceled тоже).
+    revenue_gross — только paid|shipped|delivered.
+
+    net по дням не считаем: revenue_gross считается по orders.created_at,
+    а refunds — по refunds.refunded_at (разные окна). Сумма по дням не
+    сошлась бы с общим revenue_net в дашборде — путает. Если понадобится —
+    отдельная серия series_refunds.
+    """
+    date: date
+    orders_count: int
+    revenue_gross: Money
+
+
+class AdminDashboardSeriesResponse(BaseModel):
+    period_days: int
+    items: list[DailySeriesItem]
