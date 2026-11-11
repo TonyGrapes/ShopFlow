@@ -21,11 +21,12 @@ from sqlalchemy import and_, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.v1.deps import require_roles
-from app.db.enum import OrderStatus, UserRole
+from app.db.enum import OrderStatus, RefundStatus, UserRole
 from app.db.session import get_db
 from app.models.order import Order
 from app.models.order_item import OrderItem
 from app.models.product import Product
+from app.models.refund import Refund
 from app.models.user import User as UserModel
 from app.schemas.admin import (
     AdminDashboardResponse,
@@ -58,13 +59,13 @@ async def get_admin_dashboard(
     """
     Метрики дашборда за period_days (1..90).
 
-    - orders_count:   все заказы за период (включая pending/canceled).
-    - revenue_gross:  SUM(orders.total) WHERE status IN (paid,shipped,delivered).
-    - refunds_total:  0.00 (C1); реальное значение — в C3.
-    - revenue_net:    revenue_gross - refunds_total.
-    - new_users_count: пользователи, созданные за период (deleted_at IS NULL).
-    - top_products:   top-5 по выручке (SUM(product_cost * product_count)).
+    4 SQL:
+    1. orders_count + revenue_gross (current + prev, FILTER).
+    2. new_users_count (current + prev, FILTER).
+    3. top-5 товаров по выручке (JOIN order_items).
+    4. refunds_total (current + prev, FILTER by refunded_at).
     """
+    
     threshold = datetime.now(UTC) - timedelta(days=period_days)
 
         # ── SQL 1: orders_count + revenue_gross — текущий + prev одним проходом ──
@@ -160,9 +161,35 @@ async def get_admin_dashboard(
         for row in top_result
     ]
 
-    # C3: refunds_total = SUM(refunds.amount WHERE refunds.status='completed'
-    #     AND refunds.refunded_at > threshold). Сейчас — 0.
-    refunds_total = Decimal("0.00")
+    # ── SQL 4: refunds_total + refunds_total_prev ──
+    #    Только completed. Окно по refunded_at (когда деньги вернулись),
+    #    не по created_at (когда возврат инициирован).
+    refunds_result = await db.execute(
+        select(
+            func.coalesce(
+                func.sum(Refund.amount).filter(
+                    and_(
+                        Refund.status == RefundStatus.COMPLETED,
+                        Refund.refunded_at > threshold,
+                    )
+                ),
+                Decimal("0.00"),
+            ).label("refunds_total"),
+            func.coalesce(
+                func.sum(Refund.amount).filter(
+                    and_(
+                        Refund.status == RefundStatus.COMPLETED,
+                        Refund.refunded_at > prev_threshold,
+                        Refund.refunded_at <= threshold,
+                    )
+                ),
+                Decimal("0.00"),
+            ).label("refunds_total_prev"),
+        )
+    )
+    rrow = refunds_result.one()
+    refunds_total = rrow.refunds_total
+    refunds_total_prev = rrow.refunds_total_prev
 
     return AdminDashboardResponse(
         period_days=period_days,
@@ -176,6 +203,8 @@ async def get_admin_dashboard(
         orders_count_delta_pct=_delta_pct(orders_count, orders_count_prev),
         revenue_gross_prev=revenue_gross_prev,
         revenue_gross_delta_pct=_delta_pct(revenue_gross, revenue_gross_prev),
+        refunds_total_prev=refunds_total_prev,
+        refunds_total_delta_pct=_delta_pct(refunds_total, refunds_total_prev),
         new_users_count_prev=new_users_count_prev,
         new_users_count_delta_pct=_delta_pct(new_users_count, new_users_count_prev),
     )

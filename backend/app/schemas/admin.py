@@ -57,14 +57,15 @@ class AdminDashboardResponse(BaseModel):
     """
     Метрики дашборда за period_days.
 
-    Для orders_count, revenue_gross, new_users_count добавлены поля
-    сравнения с предыдущим окном (prev) и процент изменения (delta_pct).
+    Потоки, а не P&L:
+    - revenue_gross — заказы, созданные в окне, по которым получены деньги.
+    - refunds_total — возвраты, ЗАВЕРШЁННЫЕ в окне (по refunded_at).
+    - revenue_net = revenue_gross - refunds_total. Может быть отрицательным:
+      заказ создан раньше окна, но возврат попал в окно.
 
-    delta_pct = (curr - prev) / prev * 100, округление до 1 знака.
-    None — если prev = 0 и curr > 0 (процент от нуля бессмысленен).
-    0.0 — если prev = 0 и curr = 0 (изменений нет).
-
-    refunds_total / net: в C2 всё ещё 0.00 / = gross. Реальное значение — C3.
+    refunds_total = SUM(refunds.amount) WHERE status='completed'
+                    AND refunded_at > threshold.
+    pending/failed возвраты не учитываем — деньги ещё не вернулись.
     """
     period_days: int
 
@@ -76,10 +77,12 @@ class AdminDashboardResponse(BaseModel):
     new_users_count: int
     top_products: list[TopProductItem]
 
-    # ── Предыдущее окно (period_days до начала текущего) ──
+    # ── Предыдущее окно ──
     orders_count_prev: int
     orders_count_delta_pct: float | None
     revenue_gross_prev: Money
     revenue_gross_delta_pct: float | None
+    refunds_total_prev: Money
+    refunds_total_delta_pct: float | None
     new_users_count_prev: int
     new_users_count_delta_pct: float | None

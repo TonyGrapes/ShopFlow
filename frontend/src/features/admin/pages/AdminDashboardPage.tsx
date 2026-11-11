@@ -58,7 +58,7 @@ export function AdminDashboardPage() {
               deltaPct={q.data.revenue_gross_delta_pct}
               prev={formatMoney(q.data.revenue_gross_prev)}
               periodDays={q.data.period_days}
-              hint={`gross: ${formatMoney(q.data.revenue_gross)}`}
+              hint={`gross: ${formatMoney(q.data.revenue_gross)} · возвраты: ${formatMoney(q.data.refunds_total)}`}
             />
 
             <DeltaCard
@@ -69,13 +69,13 @@ export function AdminDashboardPage() {
               periodDays={q.data.period_days}
             />
 
-            <div className={styles.card}>
-              <span className={styles.cardLabel}>Возвраты</span>
-              <strong className={styles.cardValue}>
-                {formatMoney(q.data.refunds_total)}
-              </strong>
-              <span className={styles.cardHint}>за {q.data.period_days} дн.</span>
-            </div>
+            <DeltaCard
+              label="Возвраты"
+              value={formatMoney(q.data.refunds_total)}
+              deltaPct={q.data.refunds_total_delta_pct}
+              prev={formatMoney(q.data.refunds_total_prev)}
+              periodDays={q.data.period_days}
+            />
           </div>
 
           <section className={styles.panel}>

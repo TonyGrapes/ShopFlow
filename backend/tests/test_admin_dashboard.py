@@ -257,3 +257,88 @@ class TestDashboardComparison:
         assert body["orders_count_prev"] == 0
         assert body["orders_count_delta_pct"] is None
         assert body["revenue_gross_delta_pct"] is None
+
+class TestDashboardRefunds:
+    @pytest.mark.asyncio
+    async def test_refunds_total_only_completed(
+        self, client, admin_headers, db_session, verified_user,
+        payment_for_refund, completed_refund,
+    ):
+        """
+        completed_refund = 300.00, refunded_at = now.
+        Ещё один pending refund = 999.00 не учитывается.
+        """
+        from datetime import UTC, datetime
+
+        from app.db.enum import RefundStatus
+        from app.models.refund import Refund
+
+        # pending — не считается
+        db_session.add(Refund(
+            payment_id=payment_for_refund.id,
+            amount=Decimal("999.00"),
+            status=RefundStatus.PENDING,
+            refunded_at=None,
+            created_at=datetime.now(UTC) - timedelta(hours=1),
+        ))
+        await db_session.flush()
+
+        response = await client.get(
+            "/api/v1/admin/dashboard?period_days=7", headers=admin_headers,
+        )
+        body = response.json()
+        assert Decimal(body["refunds_total"]) == Decimal("300.00")
+
+    @pytest.mark.asyncio
+    async def test_revenue_net_with_refunds(
+        self, client, admin_headers, db_session, verified_user,
+        address, payment_for_refund, completed_refund,
+    ):
+        """
+        gross 1000 (от paid order), refunds 300 → net 700.
+        Payment_for_refund привязан к order PAID total=1000.
+        """
+        response = await client.get(
+            "/api/v1/admin/dashboard?period_days=7", headers=admin_headers,
+        )
+        body = response.json()
+        gross = Decimal(body["revenue_gross"])
+        refunds = Decimal(body["refunds_total"])
+        net = Decimal(body["revenue_net"])
+        assert refunds == Decimal("300.00")
+        assert net == gross - refunds
+
+    @pytest.mark.asyncio
+    async def test_refunds_prev_and_delta(
+        self, client, admin_headers, db_session, verified_user,
+        payment_for_refund,
+    ):
+        """
+        Текущее окно: 300.00 refunded (now).
+        Предыдущее окно: 100.00 refunded (10 дней назад) — в prev.
+        delta_pct = (300 - 100) / 100 * 100 = +200.0.
+        """
+        from app.db.enum import RefundStatus
+        from app.models.refund import Refund
+
+        db_session.add(Refund(
+            payment_id=payment_for_refund.id,
+            amount=Decimal("300.00"),
+            status=RefundStatus.COMPLETED,
+            refunded_at=datetime.now(UTC) - timedelta(hours=1),
+        ))
+        db_session.add(Refund(
+            payment_id=payment_for_refund.id,
+            amount=Decimal("100.00"),
+            status=RefundStatus.COMPLETED,
+            refunded_at=datetime.now(UTC) - timedelta(days=10),
+        ))
+        await db_session.flush()
+
+        response = await client.get(
+            "/api/v1/admin/dashboard?period_days=7", headers=admin_headers,
+        )
+        body = response.json()
+        assert Decimal(body["refunds_total"]) == Decimal("300.00")
+        assert Decimal(body["refunds_total_prev"]) == Decimal("100.00")
+        assert body["refunds_total_delta_pct"] == 200.0
