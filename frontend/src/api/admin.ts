@@ -27,6 +27,8 @@ import type {
   UserStatusUpdateRequest,
 } from "../types/admin";
 
+import type { AdminDashboardResponse } from "../types/admin";
+
 export interface AdminOrderListParams {
   page?: number;
   page_size?: number;
@@ -128,3 +130,14 @@ export function updateUserStatus(
     data
   );
 }
+
+export function fetchAdminDashboard(
+  periodDays = 7
+): Promise<AdminDashboardResponse> {
+  return apiGet<AdminDashboardResponse>("/api/v1/admin/dashboard", {
+    period_days: periodDays,
+  });
+}
+
+
+

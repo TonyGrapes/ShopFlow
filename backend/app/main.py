@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import models  # noqa: F401
 from app.api.v1.endpoints import (
     addresses,
+    admin_dashboard,
     admin_orders,
     admin_products,
     admin_refunds,
@@ -150,6 +151,7 @@ app.include_router(categories.admin_router, prefix="/api/v1")
 app.include_router(admin_refunds.router, prefix="/api/v1")
 app.include_router(admin_products.router, prefix="/api/v1")
 app.include_router(admin_users.router, prefix="/api/v1")
+app.include_router(admin_dashboard.router, prefix="/api/v1")
 
 
 @app.get("/")

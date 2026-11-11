@@ -42,3 +42,25 @@ export interface AdminProductListParams {
   category_id?: number;
   status?: string;
 }
+
+// ============================================================
+//  app/schemas/admin.py — Dashboard (C1)
+// ============================================================
+import type { Money } from "./common";
+
+export interface TopProductItem {
+  product_id: number;
+  product_name: string;
+  total_quantity: number;
+  total_revenue: Money;
+}
+
+export interface AdminDashboardResponse {
+  period_days: number;
+  orders_count: number;
+  revenue_gross: Money;
+  refunds_total: Money;
+  revenue_net: Money;
+  new_users_count: number;
+  top_products: TopProductItem[];
+}
