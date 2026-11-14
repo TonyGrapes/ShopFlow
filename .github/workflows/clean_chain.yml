@@ -1,0 +1,36 @@
+name: Clean chain (E2E)
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 3 * * *"
+
+jobs:
+  clean-chain:
+    name: docker compose down -v → up → migrate → smoke → MinIO
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Prepare .env for docker compose
+        run: |
+          cp .env.example .env
+          sed -i 's|POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=ci_password|' .env
+          sed -i 's|REDIS_PASSWORD=.*|REDIS_PASSWORD=ci_redis_password|' .env
+          sed -i 's|MINIO_SECRET_KEY=.*|MINIO_SECRET_KEY=ci_minio_password|' .env
+          sed -i 's|SECRET_KEY=.*|SECRET_KEY='"$(openssl rand -hex 32)"'|' .env
+
+      - name: Run clean_chain_test.sh
+        run: bash clean_chain_test.sh
+
+      - name: Dump compose logs on failure
+        if: failure()
+        run: docker compose logs --tail=200
+
+      - name: Stop and clean
+        if: always()
+        run: docker compose down -v

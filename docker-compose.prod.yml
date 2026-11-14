@@ -1,0 +1,52 @@
+# Override для production-сборки.
+# Запуск: docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# Отличия от dev-compose:
+# - frontend собирается из Dockerfile.prod (node build → nginx serve)
+# - frontend слушает 80 (не 5173 dev-server)
+# - backend/db/redis не торчат наружу (только через nginx)
+# - VITE_API_URL="" (относительные /api/... → nginx проксирует на backend)
+services:
+  backend:
+    ports: !reset []
+    command: >
+      sh -c "uv run --no-sync alembic upgrade head &&
+             uv run --no-sync uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    volumes: !reset []         # prod-образ содержит код, bind-mount не нужен
+  
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.prod
+      args:
+        VITE_API_URL: ""
+    # !override — заменить, а не мержить с base ["5173:5173"].
+    # В проде dev-порт 5173 наружу не нужен, только nginx :80.
+    ports: !override
+      - "80:80"
+    volumes: !reset []
+    environment:
+      - VITE_API_URL=
+    healthcheck:
+      # 127.0.0.1, не localhost: в Alpine localhost → ::1 (IPv6),
+      # а nginx слушает только 0.0.0.0:80 (IPv4) → connection refused.
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1/"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+
+  db:
+    ports: !reset []
+
+  db-test:
+    ports: !reset []
+    profiles: ["test"]
+
+  redis:
+    ports: !reset []
+
+  minio:
+    # minio оставляем наружу — нужен MINIO_PUBLIC_ENDPOINT (для localhost)
+    ports:
+      - "${MINIO_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"

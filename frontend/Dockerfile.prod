@@ -1,0 +1,30 @@
+# Multi-stage: build Vite → serve через nginx.
+# Отдельный от Dockerfile (dev-mode, CMD npm run dev) — prod-сборка не
+# тянет node_modules в runtime-образ.
+
+# ---------- Stage 1: build ----------
+FROM node:20-alpine AS build
+
+WORKDIR /app
+
+# package*.json отдельно — кэш слоя не сбрасывается при правке src/
+COPY package*.json ./
+RUN npm ci
+
+# VITE_API_URL="" → относительные /api/v1/... → nginx проксирует на backend.
+ARG VITE_API_URL=""
+ENV VITE_API_URL=${VITE_API_URL}
+
+COPY . .
+RUN npm run build
+
+# ---------- Stage 2: serve ----------
+FROM nginx:alpine
+
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=build /app/dist /usr/share/nginx/html
+
+EXPOSE 80
+
+HEALTHCHECK --interval=30s --timeout=3s --retries=3 \
+  CMD wget -q -O /dev/null http://127.0.0.1/ || exit 1
