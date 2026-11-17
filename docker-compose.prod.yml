@@ -8,6 +8,7 @@
 # - VITE_API_URL="" (относительные /api/... → nginx проксирует на backend)
 services:
   backend:
+    image: shopflow-backend:prod
     ports: !reset []
     command: >
       sh -c "uv run --no-sync alembic upgrade head &&
@@ -15,6 +16,7 @@ services:
     volumes: !reset []         # prod-образ содержит код, bind-mount не нужен
   
   frontend:
+    image: shopflow-frontend:prod
     build:
       context: ./frontend
       dockerfile: Dockerfile.prod
