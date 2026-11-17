@@ -21,11 +21,12 @@ jobs:
           cp .env.example .env
           sed -i 's|POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=ci_password|' .env
           sed -i 's|REDIS_PASSWORD=.*|REDIS_PASSWORD=ci_redis_password|' .env
+          sed -i 's|MINIO_ROOT_PASSWORD=.*|MINIO_ROOT_PASSWORD=ci_minio_password|' .env
           sed -i 's|MINIO_SECRET_KEY=.*|MINIO_SECRET_KEY=ci_minio_password|' .env
           sed -i 's|SECRET_KEY=.*|SECRET_KEY='"$(openssl rand -hex 32)"'|' .env
 
       - name: Run clean_chain_test.sh
-        run: bash clean_chain_test.sh
+        run: bash backend/clean_chain_test.sh
 
       - name: Dump compose logs on failure
         if: failure()

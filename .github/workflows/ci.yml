@@ -29,17 +29,23 @@ jobs:
         working-directory: backend
         run: uv run ruff check app/ tests/ alembic/
 
-      - name: Start test DB + Redis
-        run: docker compose up -d db-test redis
-
-      - name: Wait for services
+      - name: Prepare .env for docker compose
+        # .env нет в git (.gitignore). docker compose читает его из корня —
+        # без него db-test стартует с пустыми POSTGRES_*, падает при init,
+        # и pg_isready крутится 60с впустую.
         run: |
-          for i in $(seq 1 30); do
-            if docker compose exec -T db-test pg_isready -U shopflow_user -d shopflow_test >/dev/null 2>&1; then
-              echo "db-test ready"; break
-            fi
-            echo "waiting for db-test... ($i/30)"; sleep 2
-          done
+          cp .env.example .env
+          sed -i 's|POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=ci_password|' .env
+          sed -i 's|REDIS_PASSWORD=.*|REDIS_PASSWORD=ci_redis_password|' .env
+          sed -i 's|MINIO_ROOT_PASSWORD=.*|MINIO_ROOT_PASSWORD=ci_minio_password|' .env
+          sed -i 's|MINIO_SECRET_KEY=.*|MINIO_SECRET_KEY=ci_minio_password|' .env
+          sed -i 's|SECRET_KEY=.*|SECRET_KEY='"$(openssl rand -hex 32)"'|' .env
+
+      - name: Start test DB + Redis
+        # --wait: ждёт healthcheck (Compose 2.40+), exit-code != 0 при провале.
+        # Healthcheck db-test использует ${POSTGRES_USER} / ${POSTGRES_DB} —
+        # они теперь заданы из .env.
+        run: docker compose up -d --wait db-test redis
 
       - name: Run tests (with coverage)
         working-directory: backend
