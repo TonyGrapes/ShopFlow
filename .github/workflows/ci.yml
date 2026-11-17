@@ -65,6 +65,10 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
+      
+      - name: Lint (eslint — react-hooks/rules-of-hooks)
+        working-directory: frontend
+        run: npm run lint:eslint
 
       - name: Lint (oxlint)
         working-directory: frontend
