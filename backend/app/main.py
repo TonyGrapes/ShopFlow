@@ -86,6 +86,7 @@ async def lifespan(app: FastAPI):
                 logger.warning(
                     "MinIO ensure_bucket failed (attempt %d/%d), retry in %ds",
                     attempt, len(retry_delays), delay,
+                    exc_info=True
                 )
                 await asyncio.sleep(delay)
             else:
@@ -93,6 +94,7 @@ async def lifespan(app: FastAPI):
                     "MinIO ensure_bucket failed after %d attempts; "
                     "/health will report 'minio: unavailable' until next restart",
                     len(retry_delays),
+                    exc_info=True
                 )
 
     yield
