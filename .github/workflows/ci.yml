@@ -28,19 +28,18 @@ jobs:
       - name: Lint (ruff)
         working-directory: backend
         run: uv run ruff check app/ tests/ alembic/
-
+        
       - name: Prepare .env for docker compose
-        # .env нет в git (.gitignore). docker compose читает его из корня —
-        # без него db-test стартует с пустыми POSTGRES_*, падает при init,
-        # и pg_isready крутится 60с впустую.
         run: |
           cp .env.example .env
-          sed -i 's|POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=ci_password|' .env
-          sed -i 's|REDIS_PASSWORD=.*|REDIS_PASSWORD=ci_redis_password|' .env
-          sed -i 's|MINIO_ROOT_PASSWORD=.*|MINIO_ROOT_PASSWORD=ci_minio_password|' .env
-          sed -i 's|MINIO_SECRET_KEY=.*|MINIO_SECRET_KEY=ci_minio_password|' .env
-          sed -i 's|SECRET_KEY=.*|SECRET_KEY='"$(openssl rand -hex 32)"'|' .env
+          sed -i -E 's#^POSTGRES_PASSWORD=.*#POSTGRES_PASSWORD=ci_password#' .env
+          sed -i -E 's#^REDIS_PASSWORD=.*#REDIS_PASSWORD=ci_redis_password#' .env
+          sed -i -E 's#^MINIO_ROOT_PASSWORD=.*#MINIO_ROOT_PASSWORD=ci_minio_password#' .env
+          sed -i -E 's#^MINIO_SECRET_KEY=.*#MINIO_SECRET_KEY=ci_minio_password#' .env
+          sed -i -E 's#^SECRET_KEY=.*#SECRET_KEY='"$(openssl rand -hex 32)"'#' .env
 
+          echo "----- .env (MinIO + secrets after prep) -----"
+          grep -E '^(MINIO_|SECRET_KEY=|POSTGRES_PASSWORD=|REDIS_PASSWORD=)' .env
       - name: Start test DB + Redis
         # --wait: ждёт healthcheck (Compose 2.40+), exit-code != 0 при провале.
         # Healthcheck db-test использует ${POSTGRES_USER} / ${POSTGRES_DB} —
