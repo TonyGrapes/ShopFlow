@@ -28,7 +28,7 @@ jobs:
       - name: Lint (ruff)
         working-directory: backend
         run: uv run ruff check app/ tests/ alembic/
-        
+
       - name: Prepare .env for docker compose
         run: |
           cp .env.example .env
@@ -40,10 +40,15 @@ jobs:
 
           echo "----- .env (MinIO + secrets after prep) -----"
           grep -E '^(MINIO_|SECRET_KEY=|POSTGRES_PASSWORD=|REDIS_PASSWORD=)' .env
-      - name: Start test DB + Redis
-        # --wait: ждёт healthcheck (Compose 2.40+), exit-code != 0 при провале.
-        # Healthcheck db-test использует ${POSTGRES_USER} / ${POSTGRES_DB} —
-        # они теперь заданы из .env.
+    - name: Start test DB + Redis
+        env:          
+          # Значения должны совпадать с backend/.env.test, который читает
+          # pytest-env при прогоне. Иначе db-test инициализируется с
+          # POSTGRES_PASSWORD из .env (ci_password), а тесты коннектятся
+          # с shopflow_password_2026 -> asyncpg.InvalidPasswordError.
+          POSTGRES_USER: shopflow_user
+          POSTGRES_PASSWORD: shopflow_password_2026
+          POSTGRES_DB: shopflow_test
         run: docker compose up -d --wait db-test redis
 
       - name: Run tests (with coverage)
