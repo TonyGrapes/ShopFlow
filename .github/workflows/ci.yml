@@ -40,7 +40,7 @@ jobs:
 
           echo "----- .env (MinIO + secrets after prep) -----"
           grep -E '^(MINIO_|SECRET_KEY=|POSTGRES_PASSWORD=|REDIS_PASSWORD=)' .env
-    - name: Start test DB + Redis
+      - name: Start test DB + Redis
         env:          
           # Значения должны совпадать с backend/.env.test, который читает
           # pytest-env при прогоне. Иначе db-test инициализируется с
