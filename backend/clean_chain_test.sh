@@ -128,18 +128,20 @@ storage.ensure_bucket()
 print('   ensure_bucket OK')
 "
 
-# 7.2. Настраиваем mc alias внутри контейнера MinIO
-docker exec "$MINIO_CONTAINER" sh -c "
-    mc alias set local http://localhost:9000 '$MINIO_USER' '$MINIO_PASS' >/dev/null 2>&1
-" || fail "Не удалось настроить mc alias"
-
-# 7.3. Получаем policy в JSON
-POLICY_JSON=$(docker exec "$MINIO_CONTAINER" sh -c "
-    mc anonymous get-json local/$MINIO_BUCKET 2>/dev/null
-" || echo "{}")
-
-echo "   Policy: $POLICY_JSON" | head -c 200
-echo
+# 7.2. Получаем policy через backend (minio-py).
+# Раньше здесь вызывался `mc` из контейнера minio с портом 9001,
+# но 9001 — это console, а S3 — на 9000; к тому же mc не входит
+# в образ pgsty/minio. Backend уже имеет рабочий S3-клиент
+# (тот же, что прошёл ensure_bucket) — используем его.
+POLICY_JSON=$(docker compose exec -T backend uv run --no-sync python - <<'PY' 2>/dev/null || echo "{}"
+from app.services.storage_service import get_storage
+s = get_storage()
+try:
+    print(s._client.get_bucket_policy(s._bucket) or "{}")
+except Exception:
+    print("{}")
+PY
+)
 
 # 7.4. Проверяем наличие s3:GetObject
 if ! echo "$POLICY_JSON" | grep -q '"s3:GetObject"'; then
