@@ -34,12 +34,15 @@ export default defineConfig({
          'src/prototypes/**',
        ],
        thresholds: {
-         // Baseline 10.77% (21 tests / ~3000 stmts). Fix the fact now,
-         // ratchet  2 per epic in the same PR that adds the tests.
-         // branches/functions are not gated yet: v8 reports misleadingly
-         // high values (uncalled functions show 100% branch — see
-         // vitest-dev/vitest#2390). Enable them once lines >= 40%.
-         lines: 10,
+        // Ratchet history:
+        //   H.1 (21 tests):  10.77% -> threshold 10
+        //   H.2 (adds 34):   ~19-21% (labels / debounce / async / toast)
+        //                    -> threshold 12, 2 as planned.
+        // Next ratchet (H.3: auth context  api layer) targets 14;
+        // by H.5 we should reach ~30, at which point we can start
+        // gating branches/functions (v8 reports misleadingly high
+        // branch% for uncalled code, see vitest-dev/vitest#2390).
+        lines: 12,
        },
      },
    },
