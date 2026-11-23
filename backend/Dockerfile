@@ -27,7 +27,7 @@ USER appuser
 
 EXPOSE 8000
 
-HEALTHCHECK --interval=10s --timeout=3s --retries=3 \
+HEALTHCHECK --interval=10s --timeout=3s --retries=3 --start-period=60s \
   CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health', timeout=2)" || exit 1
 
 CMD ["uv", "run", "--no-sync", "uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--reload"]
