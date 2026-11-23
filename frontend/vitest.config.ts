@@ -28,16 +28,15 @@ export default defineConfig({
          'src/**/types.ts',
          'src/prototypes/**',
        ],
-       thresholds: {
+        thresholds: {
         // Ratchet history:
         //   H.1 (21 tests):  10.77% -> threshold 10
-        //   H.2 (adds 34):   ~19-21% (labels / debounce / async / toast)
-        //                    -> threshold 12, 2 as planned.
-        // Next ratchet (H.3: auth context  api layer) targets 14;
-        // by H.5 we should reach ~30, at which point we can start
-        // gating branches/functions (v8 reports misleadingly high
-        // branch% for uncalled code, see vitest-dev/vitest#2390).
-        lines: 12,
+        //   H.2 (adds 34):   ~19-21% -> threshold 12
+        //   H.3 (adds 86; src/api 99%): 21.81% -> threshold 16
+        // Next: context/AuthProvider, catalog components, pages.
+        // At ~30% start gating branches/functions (v8 quirk for
+        // uncalled code, see vitest-dev/vitest#2390).
+        lines: 16,
        },
      },
    },
