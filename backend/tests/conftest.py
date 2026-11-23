@@ -10,6 +10,13 @@ env_path = Path(__file__).parent.parent / ".env.test"
 if env_path.exists():
     load_dotenv(dotenv_path=env_path, override=True)
 
+# Опциональный override пароля тестовой БД без правки коммитнутого .env.test.
+# .env.test задаёт дефолт; POSTGRES_TEST_PASSWORD (если задан) побеждает.
+# Должно совпадать с db-test: docker-compose.yml прокидывает тот же override.
+_override_password = os.getenv("POSTGRES_TEST_PASSWORD")
+if _override_password:
+    os.environ["POSTGRES_PASSWORD"] = _override_password
+
 from types import SimpleNamespace
 
 import fakeredis.aioredis

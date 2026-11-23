@@ -25,6 +25,10 @@ services:
     container_name: shopflow-db-test
     env_file:
       - ./backend/.env.test
+    environment:
+      # Override поверх env_file: POSTGRES_TEST_PASSWORD (если задан в
+      # shell/CI/root .env) побеждает, иначе — дефолт из .env.test.
+      POSTGRES_PASSWORD: ${POSTGRES_TEST_PASSWORD:-shopflow_password_2026}
     ports:
       - "5433:5432"                # ← снаружи 5433, внутри 5432
     tmpfs:
