@@ -96,10 +96,10 @@ omit = ["app/smoke_models.py"]
 [tool.coverage.report]
 show_missing = true
 skip_covered = false
-# Baseline 80.69% (statement, app/ без smoke_models.py).
-# fail_under = baseline - 2 ≈ 78.7 → округляем вниз до 78.
+# Факт 80.31% (statement, app/ без smoke_models.py).
+# Ratchet: 80 (было 78) — минимальный запас против незаметной регрессии.
 # Точечные прогоны требуют --no-cov (см. README.md).
-fail_under = 78
+fail_under = 80
 # В TOML нет raw-строк r"..."; используем literal-строки в одинарных
 # кавычках — они не обрабатывают escape-последовательности.
 #
