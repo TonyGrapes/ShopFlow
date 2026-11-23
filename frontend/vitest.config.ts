@@ -33,10 +33,11 @@ export default defineConfig({
         //   H.1 (21 tests):  10.77% -> threshold 10
         //   H.2 (adds 34):   ~19-21% -> threshold 12
         //   H.3 (adds 86; src/api 99%): 21.81% -> threshold 16
-        // Next: context/AuthProvider, catalog components, pages.
+        //   H.4 (adds 16; AuthProvider 100%): 23.46% -> threshold 18
+        // Next: CartProvider/FavoritesProvider, catalog components, pages.
         // At ~30% start gating branches/functions (v8 quirk for
         // uncalled code, see vitest-dev/vitest#2390).
-        lines: 16,
+        lines: 18,
        },
      },
    },
