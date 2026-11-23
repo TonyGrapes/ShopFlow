@@ -31,6 +31,9 @@ Backend (616 тестов, coverage 80.3%, fail_under=78):
 
 Точечные прогоны — с `--no-cov` (иначе fail_under сработает на неполном прогоне).
 
+Активировать venv не обязательно: `uv run` сам использует `backend/.venv`.
+Если venv уже активирован в терминале — команды работают так же.
+
 Frontend (21 тест, vitest + @testing-library/react):
 
     cd frontend
