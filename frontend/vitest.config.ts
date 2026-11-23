@@ -4,14 +4,9 @@ import { defineConfig } from "vitest/config";
 import react from "@vitejs/plugin-react";
 
 export default defineConfig({
-  // Cast: the installed tree has two vite copies — top-level 7.x (rolldown
-   // types) and a nested one under vitest (rollup types). @vitejs/plugin-react
-   // is resolved from the top-level copy, while defineConfig expects the
-   // nested copy's Plugin type. Runtime is fine (both implement Rollup's
-   // plugin interface); only the type identity differs. See TS2769.
-   // Remove this cast once vite/plugin-react/vitest versions are aligned
-   // (see the TODO below).
-   plugins: [react() as any],
+  // vite 7 + @vitejs/plugin-react 5.2 + vitest 3 resolve to a single vite
+  // copy, so plugin-react's Plugin type matches vitest/config's — no cast.
+  plugins: [react()],
    test: {
      globals: true,
      environment: 'jsdom',
