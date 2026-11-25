@@ -36,10 +36,12 @@ export default defineConfig({
         //   H.4 (adds 16; AuthProvider 100%): 23.46% -> threshold 18
         //   H.5 (adds 29; CartProvider/FavoritesProvider 100%): 27.31% -> threshold 25
         //   H.6 (adds 32; LoginPage 100%, CartPage ~98%): 30.41% -> threshold 28
-        // Next: remaining pages/catalog components. Branch/function gates
-        // deferred until more pages are covered — v8 reports odd numbers for
-        // uncalled code (see vitest-dev/vitest#2390).
-        lines: 28,
+        //   H.7 (adds 29; Orders/Product/pages-Catalog 100%): 38.86% -> threshold 36
+        // Note: the router uses features/catalog/CatalogPage.tsx (still 0%);
+        // src/pages/CatalogPage.tsx is unused legacy. Next: cover the real
+        // catalog page or remove the dead one. Branch/function gates deferred
+        // (v8 reports odd numbers for uncalled code, vitest-dev/vitest#2390).
+        lines: 36,
        },
      },
    },
