@@ -39,10 +39,10 @@ export default defineConfig({
         //   H.7 (adds 29; Orders/Product 100%): 38.86% -> threshold 36
         //   Cleanup: removed unused src/pages/CatalogPage (100% covered).
         //     38.86% -> 36.20% (smaller denominator, lower average) -> 34.
-        // Note: the router uses features/catalog/CatalogPage.tsx (still 0%).
-        // Next: cover the real catalog page. Branch/function gates deferred
-        // (v8 reports odd numbers for uncalled code, vitest-dev/vitest#2390).
-        lines: 34,
+        //   H.8a (adds 37; catalog utils 100%, hooks ~93%): 39.88% -> 37
+        // Next: real features/catalog/CatalogPage + components. Branch/function
+        // gates deferred (v8 odd numbers for uncalled code, vitest-dev/vitest#2390).
+        lines: 37,
        },
      },
    },
