@@ -41,10 +41,10 @@ export default defineConfig({
         //     38.86% -> 36.20% (smaller denominator, lower average) -> 34.
         //   H.8a (adds 37; catalog utils 100%, hooks ~93%): 39.88% -> 37
         //   H.8b (adds 15; features/catalog ~99%): 54.86% -> 52
-        // Fixed FilterSidebar: spurious onPriceChange(null, 0) while bounds load.
+        //   H.9 (adds 19; CheckoutPage 99%, AddressForm 100%): 62.30% -> 59
         // Next: admin/remaining pages. Branch/function gates deferred (v8 odd
         // numbers for uncalled code, vitest-dev/vitest#2390).
-        lines: 52,
+        lines: 59,
        },
      },
    },
