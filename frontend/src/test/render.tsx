@@ -100,13 +100,22 @@ interface Options extends Omit<RenderOptions, "wrapper"> {
   favorites?: Partial<FavoritesContextValue>;
   toast?: Partial<ToastContextValue>;
   route?: string;
+  routeState?: unknown;
 }
 
 export function renderWithProviders(ui: ReactElement, options: Options = {}) {
-  const { auth, cart, favorites, toast, route = "/", ...rest } = options;
+  const {
+    auth,
+    cart,
+    favorites,
+    toast,
+    route = "/",
+    routeState,
+    ...rest
+  } = options;
 
   return render(
-    <MemoryRouter initialEntries={[route]}>
+    <MemoryRouter initialEntries={[{ pathname: route, state: routeState }]}>
       <ToastContext.Provider value={mockToast(toast)}>
         <AuthContext.Provider value={mockAuth(auth)}>
           <FavoritesContext.Provider value={mockFavorites(favorites)}>

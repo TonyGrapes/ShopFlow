@@ -35,10 +35,11 @@ export default defineConfig({
         //   H.3 (adds 86; src/api 99%): 21.81% -> threshold 16
         //   H.4 (adds 16; AuthProvider 100%): 23.46% -> threshold 18
         //   H.5 (adds 29; CartProvider/FavoritesProvider 100%): 27.31% -> threshold 25
-        // Next: catalog components, pages.
-        // At ~30% start gating branches/functions (v8 quirk for
-        // uncalled code, see vitest-dev/vitest#2390).
-        lines: 25,
+        //   H.6 (adds 32; LoginPage 100%, CartPage ~98%): 30.41% -> threshold 28
+        // Next: remaining pages/catalog components. Branch/function gates
+        // deferred until more pages are covered — v8 reports odd numbers for
+        // uncalled code (see vitest-dev/vitest#2390).
+        lines: 28,
        },
      },
    },
