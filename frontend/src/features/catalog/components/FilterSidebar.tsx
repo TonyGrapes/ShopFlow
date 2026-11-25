@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Category } from "../../../types/category";
 import type { ProductStatus } from "../../../types/product";
 import { useDebouncedValue } from "../../../shared/hooks/useDebouncedValue";
@@ -34,6 +34,10 @@ export function FilterSidebar({
 }: Props) {
   const [priceMin, setPriceMin] = useState(filters.minCost ?? bounds.min);
   const [priceMax, setPriceMax] = useState(filters.maxCost ?? bounds.max);
+  // Не применяем debounced-цены, пока пользователь не трогал слайдер.
+  // Иначе загрузка bounds (0 → реальный диапазон) вызывает onPriceChange
+  // со stale 0 и применяет max_cost=0.
+  const interacted = useRef(false);
 
   useEffect(() => {
     setPriceMin(filters.minCost ?? bounds.min);
@@ -47,6 +51,8 @@ export function FilterSidebar({
   const debouncedMax = useDebouncedValue(priceMax, 350);
 
   useEffect(() => {
+    if (!interacted.current) return;
+
     const min = debouncedMin <= bounds.min ? null : debouncedMin;
     const max = debouncedMax >= bounds.max ? null : debouncedMax;
     if (min !== filters.minCost || max !== filters.maxCost) {
@@ -105,6 +111,7 @@ export function FilterSidebar({
             min={Math.min(Math.max(priceMin, bounds.min), bounds.max)}
             max={Math.min(Math.max(priceMax, bounds.min), bounds.max)}
             onChange={(min, max) => {
+              interacted.current = true;
               setPriceMin(min);
               setPriceMax(max);
             }}

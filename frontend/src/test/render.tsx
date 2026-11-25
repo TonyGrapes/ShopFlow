@@ -114,8 +114,13 @@ export function renderWithProviders(ui: ReactElement, options: Options = {}) {
     ...rest
   } = options;
 
+  const initialEntry =
+    routeState === undefined
+      ? route
+      : { pathname: route, state: routeState };
+
   return render(
-    <MemoryRouter initialEntries={[{ pathname: route, state: routeState }]}>
+    <MemoryRouter initialEntries={[initialEntry]}>
       <ToastContext.Provider value={mockToast(toast)}>
         <AuthContext.Provider value={mockAuth(auth)}>
           <FavoritesContext.Provider value={mockFavorites(favorites)}>

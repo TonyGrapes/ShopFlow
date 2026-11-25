@@ -40,9 +40,11 @@ export default defineConfig({
         //   Cleanup: removed unused src/pages/CatalogPage (100% covered).
         //     38.86% -> 36.20% (smaller denominator, lower average) -> 34.
         //   H.8a (adds 37; catalog utils 100%, hooks ~93%): 39.88% -> 37
-        // Next: real features/catalog/CatalogPage + components. Branch/function
-        // gates deferred (v8 odd numbers for uncalled code, vitest-dev/vitest#2390).
-        lines: 37,
+        //   H.8b (adds 15; features/catalog ~99%): 54.86% -> 52
+        // Fixed FilterSidebar: spurious onPriceChange(null, 0) while bounds load.
+        // Next: admin/remaining pages. Branch/function gates deferred (v8 odd
+        // numbers for uncalled code, vitest-dev/vitest#2390).
+        lines: 52,
        },
      },
    },
