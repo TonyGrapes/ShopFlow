@@ -47,9 +47,10 @@ export default defineConfig({
         //   H.12 (adds 18; AdminProductsPage 100%): 73.82% -> 71
         //   H.13 (adds 15; AdminUsersPage 100%): 77.20% -> 74
         //   H.14 (adds 9; AdminOrdersPage + shared Pagination 100%): 79.50% -> 77
-        // Next: admin categories/dashboard. Branch/function gates deferred (v8 odd
+        //   H.15 (adds 11; AdminCategoriesPage 100%): 81.43% -> 79
+        // Next: admin dashboard/revenue chart. Branch/function gates deferred (v8 odd
         // numbers for uncalled code, vitest-dev/vitest#2390).
-        lines: 77,
+        lines: 79,
        },
      },
    },
