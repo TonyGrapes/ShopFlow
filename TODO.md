@@ -11,6 +11,7 @@
 - [x] actionlint: добавлен отдельный job в CI (`raven-actions/actionlint@v2`).
 - [x] Убран `env: POSTGRES_*` из шага `db-test` в `ci.yml`. Проверено пересозданием `db-test` с нуля: пароль `shopflow_password_2026`, smoke 7/7.
 - [x] Удалён неиспользуемый legacy `frontend/src/pages/CatalogPage.tsx` (роутер использует `features/catalog/CatalogPage.tsx`).
+- [x] Покрыты `AdminDashboardPage`/`RevenueChart`/`AdminLayout`/`ToastContainer` (H.16): 100%, общий coverage 83.68%.
 - [x] Покрыт `AdminCategoriesPage` (H.15): 100%, общий coverage 81.43%.
 - [x] Покрыт `AdminOrdersPage` (H.14): 100% (+ shared `Pagination` 100%), общий coverage 79.50%.
 - [x] Покрыт `AdminUsersPage` (H.13): 100%, общий coverage 77.20%.
@@ -22,6 +23,6 @@
 
 ## Open
 
-- [ ] Остальные страницы: `AddressesPage`, `ProfilePage`, admin: Dashboard/RevenueChart, AdminLayout, guards/router/providers; `App`/`router`/`providers`/`guards`.
+- [ ] Остальные страницы: `AddressesPage`, `ProfilePage`, guards/router/providers/StorefrontLayout; `App`/`router`/`providers`/`guards`.
 - [ ] Опционально: отдельный `backend/.env.db-test` только с `POSTGRES_*`, чтобы не засорять `docker compose config` лишними переменными. Текущий вариант рабочий.
-- [ ] Branch/function coverage gates отложены: v8 даёт странные числа для непокрытого кода (vitest-dev/vitest#2390). Сейчас gate только по `lines` (81.43%, порог 79).
+- [ ] Branch/function coverage gates отложены: v8 даёт странные числа для непокрытого кода (vitest-dev/vitest#2390). Сейчас gate только по `lines` (83.68%, порог 81).
