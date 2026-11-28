@@ -51,9 +51,10 @@ export default defineConfig({
         //   H.16 (adds 20; Dashboard/RevenueChart/AdminLayout/Toast 100%): 83.68% -> 81
         //   H.17 (adds 15; ProfilePage 100%): 86.97% -> 84
         //   H.18 (adds 14; AddressesPage/AddressForm 100%): 89.51% -> 86
-        // Next: VerifyEmail + app shell/guards. Branch/function gates deferred (v8 odd
+        //   H.19 (adds 8; VerifyEmailPage 100%): 91.01% -> 88
+        // Next: app shell/guards. Branch/function gates deferred (v8 odd
         // numbers for uncalled code, vitest-dev/vitest#2390).
-        lines: 86,
+        lines: 88,
        },
      },
    },
