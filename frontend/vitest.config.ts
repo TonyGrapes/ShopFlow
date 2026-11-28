@@ -45,9 +45,10 @@ export default defineConfig({
         //   H.10 (adds 13; OrderDetailPage 100%): 65.99% -> 63
         //   H.11 (adds 14; RegisterPage 184/187): 69.10% -> 66
         //   H.12 (adds 18; AdminProductsPage 100%): 73.82% -> 71
-        // Next: admin users/orders/categories/dashboard. Branch/function gates deferred (v8 odd
+        //   H.13 (adds 15; AdminUsersPage 100%): 77.20% -> 74
+        // Next: admin orders/categories/dashboard. Branch/function gates deferred (v8 odd
         // numbers for uncalled code, vitest-dev/vitest#2390).
-        lines: 71,
+        lines: 74,
        },
      },
    },
