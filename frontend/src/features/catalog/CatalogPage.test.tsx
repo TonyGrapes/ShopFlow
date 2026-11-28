@@ -368,6 +368,13 @@ describe("CatalogPage (features/catalog)", () => {
     renderPage();
     await screen.findByText("Laptop");
 
+    // Ждём, пока bounds из fetchProductPriceRange применятся к слайдеру,
+    // иначе onChange прочитает устаревший max и потеряет ввод.
+    await waitFor(() => {
+      expect(screen.getByLabelText("Минимальная цена")).toHaveValue("100");
+      expect(screen.getByLabelText("Максимальная цена")).toHaveValue("2000");
+    });
+
     fireEvent.input(screen.getByLabelText("Минимальная цена"), {
       target: { value: "480" },
     });

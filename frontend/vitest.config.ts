@@ -42,9 +42,10 @@ export default defineConfig({
         //   H.8a (adds 37; catalog utils 100%, hooks ~93%): 39.88% -> 37
         //   H.8b (adds 15; features/catalog ~99%): 54.86% -> 52
         //   H.9 (adds 19; CheckoutPage 99%, AddressForm 100%): 62.30% -> 59
+        //   H.10 (adds 13; OrderDetailPage 100%): 65.99% -> 63
         // Next: admin/remaining pages. Branch/function gates deferred (v8 odd
         // numbers for uncalled code, vitest-dev/vitest#2390).
-        lines: 59,
+        lines: 63,
        },
      },
    },
