@@ -11,12 +11,13 @@
 - [x] actionlint: добавлен отдельный job в CI (`raven-actions/actionlint@v2`).
 - [x] Убран `env: POSTGRES_*` из шага `db-test` в `ci.yml`. Проверено пересозданием `db-test` с нуля: пароль `shopflow_password_2026`, smoke 7/7.
 - [x] Удалён неиспользуемый legacy `frontend/src/pages/CatalogPage.tsx` (роутер использует `features/catalog/CatalogPage.tsx`).
+- [x] Покрыт `RegisterPage` (H.11): 184/187 (недостижимая ветка resend при валидном email), общий coverage 69.10%.
 - [x] Покрыт `OrderDetailPage` (H.10): 100%, общий coverage 65.99%. Заодно убран флейк catalog-теста слайдера (ждать применения bounds).
 - [x] Покрыт `CheckoutPage` + `AddressForm` (H.9): Checkout 99%, AddressForm 100%, общий coverage 62.30%.
 - [x] Покрыт реальный `features/catalog/CatalogPage` + компоненты/хуки/utils (H.8): `features/catalog` ~99%, общий coverage 54.86%. Попутно исправлен баг `FilterSidebar`: при загрузке `bounds` (0 → реальный диапазон) debounce применял stale `onPriceChange(null, 0)` и ставил `max_cost=0`.
 
 ## Open
 
-- [ ] Остальные страницы: `RegisterPage`, `AddressesPage`, `ProfilePage`, admin-страницы; `App`/`router`/`providers`/`guards`.
+- [ ] Остальные страницы: `AddressesPage`, `ProfilePage`, admin-страницы; `App`/`router`/`providers`/`guards`.
 - [ ] Опционально: отдельный `backend/.env.db-test` только с `POSTGRES_*`, чтобы не засорять `docker compose config` лишними переменными. Текущий вариант рабочий.
-- [ ] Branch/function coverage gates отложены: v8 даёт странные числа для непокрытого кода (vitest-dev/vitest#2390). Сейчас gate только по `lines` (65.99%, порог 63).
+- [ ] Branch/function coverage gates отложены: v8 даёт странные числа для непокрытого кода (vitest-dev/vitest#2390). Сейчас gate только по `lines` (69.10%, порог 66).
